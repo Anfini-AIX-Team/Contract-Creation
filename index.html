@@ -82,8 +82,8 @@
   /* 契約書作成画面：左サイドバー（フォーマット選択）＋右作業エリア */
   .make-shell{display:grid;grid-template-columns:264px 1fr;gap:20px;align-items:start}
   @media(max-width:820px){.make-shell{grid-template-columns:1fr}}
-  .make-sidebar{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:sticky;top:78px}
-  @media(max-width:820px){.make-sidebar{position:static}}
+  .make-sidebar{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:sticky;top:78px;min-height:960px}
+  @media(max-width:820px){.make-sidebar{position:static;min-height:auto}}
   .make-sidebar-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:13px;background:#F9FAFB}
   .make-sidebar-list{max-height:640px;overflow:auto;padding:8px}
   .side-tpl-item{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;cursor:pointer;transition:.12s}
@@ -102,7 +102,7 @@
   .docx-preview table{border-collapse:collapse;margin:8px 0}
   .docx-preview td,.docx-preview th{border:1px solid var(--line);padding:4px 8px}
   .mask{background:var(--mask);border-bottom:2px solid var(--mask-line);border-radius:3px;padding:0 2px;cursor:pointer}
-  .mask:hover{filter:brightness(.96);text-decoration:line-through}
+  .mask:hover{filter:brightness(.96)}
   /* マスクモード切替（鉛筆／消しゴム） */
   .mask-toggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
   .mask-toggle button{border:none;background:#fff;padding:6px 12px;font-size:13px;font-family:inherit;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
@@ -323,7 +323,7 @@ function renderMakeWorkarea(){
   const t=m.template;
   box.innerHTML=`
     <div class="row" style="justify-content:space-between;align-items:center">
-      <h2 style="margin:0;font-size:18px">${esc(t.name)}</h2>
+      <h2 style="margin:0 0 0 8px;font-size:18px">${esc(t.name)}</h2>
       <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
     </div>
     <div class="tabs" style="margin-top:14px;margin-bottom:0">
@@ -413,7 +413,7 @@ function viewTemplateNew(app){
       <label class="lbl">② フォーマットファイル（Word .docx / Excel .xlsx）</label>
       <div class="dropzone" id="drop">
         <div class="big">⬆</div>
-        <div><b>クリック</b>またはドラッグ＆ドロップでアップロード</div>
+        <div>クリックまたはドラッグ＆ドロップでアップロード</div>
         <div class="hint">.docx / .xlsx に対応</div>
       </div>
       <input type="file" id="fileInput" accept=".docx,.xlsx" style="display:none">
@@ -453,25 +453,29 @@ function viewTemplateNew(app){
 
 async function handleTemplateFile(file){
   const d=state.draft;
-  const ext=(file.name.split('.').pop()||'').toLowerCase();
-  if(ext!=='docx' && ext!=='xlsx'){ toast('.docx か .xlsx を選んでください', true); return; }
-  if(!d.name){ d.name=file.name.replace(/\.[^.]+$/,''); }
-  loading(true,'ファイルを読み込み中…');
+  const isDocx = /\.docx$/i.test(file.name);
+  const isXlsx = /\.xlsx$/i.test(file.name);
+  if(!isDocx && !isXlsx){ toast('Word（.docx）または Excel（.xlsx）を選択してください', true); return; }
+  d.fileType = isDocx ? 'docx' : 'xlsx';
+  if(!d.name.trim()) {
+    d.name = file.name.replace(/\.[^/.]+$/, "");
+    const tn=document.getElementById('tplName'); if(tn) tn.value=d.name;
+  }
   try{
-    const ab=await file.arrayBuffer();
-    d.fileType=ext;
-    d.fileBase64=abToBase64(ab);
-    d.variables=[];
-    d.maskMode=d.maskMode||'add';
-    if(ext==='docx'){
-      const result=await mammoth.convertToHtml({arrayBuffer:ab});
-      d.previewHtml=result.value;
-    }else{
-      d.workbook=XLSX.read(ab,{type:'array'});
+    loading(true, 'ファイルを解析中…');
+    d.fileBase64 = await fileToBase64(file);
+    d.variables = [];
+    const ab = base64ToAb(d.fileBase64);
+    if(isDocx){
+      const result = await mammoth.convertToHtml({arrayBuffer: ab});
+      d.previewHtml = result.value;
+    } else {
+      d.workbook = XLSX.read(ab, {type: 'array'});
     }
     loading(false);
-    render('templateNew');
-  }catch(e){ loading(false); toast('読み込みに失敗しました: '+e.message,true); }
+    const ua=document.getElementById('uploadArea'); if(ua) ua.style.display='none';
+    buildMaskArea();
+  }catch(e){ loading(false); toast('ファイルの読み込みに失敗しました: '+e.message, true); }
 }
 
 function buildMaskArea(){
@@ -820,7 +824,9 @@ function renderAutoBox(){
       <div class="field">
         <label class="lbl">画像</label>
         <div class="dropzone" id="imgDrop" style="padding:22px">
-          <div class="big" style="font-size:28px">🖼</div>
+          <div class="big" style="display:grid;place-items:center;margin-bottom:6px">
+            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+          </div>
           <div>クリックまたはドラッグ＆ドロップで画像を添付</div>
           <div class="hint" id="imgName">${m.image?('選択中: '+esc(m.image.name)):'メッセージのスクリーンショットを添付できます。'}</div>
           <div id="thumbContainer">${imgPreviewHtml}</div>
@@ -858,26 +864,35 @@ function renderAutoBox(){
 }
 
 async function analyzeSource(){
-  const m=state.make;
-  if(!m.source.trim() && !m.image){ toast('文章か画像を入力してください', true); return; }
+  const m=state.make, t=m.template;
+  if(!m.source.trim() && !m.image){ toast('テキストを貼り付けるか、画像を添付してください', true); return; }
   try{
-    loading(true,'AIがソースを解析しています…');
-    const payload={
-      variables:m.template.variables.map(v=>({ propName:v.propName, originalText:v.originalText })),
-      source:m.source||''
+    loading(true, 'AIが情報を解析して入力中…');
+    const payload = {
+      templateName: t.name,
+      properties: t.variables.map(v=>v.propName),
+      sourceText: m.source
     };
-    if(m.image){ payload.imageBase64=m.image.base64; payload.imageMime=m.image.mime; }
-    const { values }=await callAI('extractValues', payload);
-    m.values=Object.assign({}, m.values, values||{});
+    if(m.image){
+      payload.imageB64 = m.image.base64;
+      payload.imageMime = m.image.mime;
+    }
+    const { values } = await callAI('analyzeContractSource', payload);
+    t.variables.forEach(v=>{
+      if(values && values[v.propName] !== undefined){
+        m.values[v.propName] = values[v.propName];
+      }
+    });
     loading(false);
     renderMakeFormFields();
-    toast('AIが読み取った内容を反映しました。ご確認・修正してください。');
+    toast('AI自動入力を反映しました。内容をご確認ください。');
   }catch(e){ loading(false); toast(e.message, true); }
 }
 
 function renderMakeFormFields(){
   const m=state.make, t=m.template;
   const box=document.getElementById('formBox');
+  if(!box) return;
   box.innerHTML=`
     <div class="card">
       <h2 style="font-size:16px">各項目を入力</h2>
@@ -908,36 +923,56 @@ function openConfirm(){
       <div class="k">${esc(v.propName)}</div>
       <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}">
     </div>`).join('');
+  
+  // 初期ファイル名をセット
+  const defaultFilename = m.outputFilename || t.name;
+
   bd.innerHTML=`
     <div class="modal">
       <div class="modal-head"><h2>内容の確認</h2><p class="hint" style="margin:4px 0 0">このまま出力します。必要なら修正してください。</p></div>
-      <div class="modal-body">${rows}</div>
+      <div class="modal-body">
+        <div class="field" style="margin-bottom:20px; background:var(--brand-soft); padding:14px; border-radius:10px;">
+          <label class="lbl" style="color:var(--brand-ink)">📁 出力ファイル名（拡張子は自動付与）</label>
+          <input type="text" id="outputFilenameInput" value="${esc(defaultFilename)}" placeholder="ファイル名を入力">
+        </div>
+        <h3>入力項目</h3>
+        ${rows}
+      </div>
       <div class="modal-foot">
         <button class="btn ghost" id="cancelC">修正に戻る</button>
         <button class="btn" id="doneC">✓ 完了してファイル出力</button>
       </div>
     </div>`;
   bd.classList.add('show');
+  
+  const fnInput = document.getElementById('outputFilenameInput');
+  fnInput.oninput = e => { m.outputFilename = e.target.value.trim(); };
+
   bd.querySelectorAll('input[data-prop]').forEach(inp=>{
     inp.oninput=e=>{ m.values[e.target.dataset.prop]=e.target.value; };
   });
   document.getElementById('cancelC').onclick=()=>{ bd.classList.remove('show'); renderMakeFormFields(); };
-  document.getElementById('doneC').onclick=async()=>{ bd.classList.remove('show'); await generateOutput(); renderMakeFormFields(); };
+  document.getElementById('doneC').onclick=async()=>{ 
+    const finalFilename = (m.outputFilename || t.name).trim() || '契約書出力';
+    bd.classList.remove('show'); 
+    await generateOutput(finalFilename); 
+    renderMakeFormFields(); 
+  };
 }
 
-async function generateOutput(){
+async function generateOutput(filename){
   const m=state.make, t=m.template;
   try{
     loading(true,'契約書ファイルを生成中…');
-    if(t.fileType==='docx') await generateDocx(t, m.values);
-    else await generateXlsx(t, m.values);
+    if(t.fileType==='docx') await generateDocx(t, m.values, filename);
+    else await generateXlsx(t, m.values, filename);
     loading(false);
     toast('契約書を出力しました');
   }catch(e){ loading(false); toast('生成エラー: '+e.message, true); }
 }
 
 /* ---- docx 生成（XMLを直接置換して書式を保持 / 出現位置ごとに個別置換） ---- */
-async function generateDocx(t, values){
+async function generateDocx(t, values, filename){
   const zip=new PizZip(base64ToAb(t.fileBase64));
   const xmlFile=zip.file('word/document.xml');
   if(!xmlFile) throw new Error('document.xmlが見つかりません');
@@ -959,7 +994,7 @@ async function generateDocx(t, values){
   const out=new XMLSerializer().serializeToString(doc);
   zip.file('word/document.xml', out);
   const blob=zip.generate({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
-  download(blob, `${t.name}.docx`);
+  download(blob, `${filename}.docx`);
   if(missing.length) toast('一部の項目が本文中に見つかりませんでした: '+missing.join(', '), true);
 }
 function setT(node, text){ node.textContent=text; node.setAttribute('xml:space','preserve'); }
@@ -984,7 +1019,7 @@ function replaceRangeInRuns(runs, start, end, value){
 }
 
 /* ---- xlsx 生成（セル値を書き換えて書式を保持） ---- */
-async function generateXlsx(t, values){
+async function generateXlsx(t, values, filename){
   const wb=XLSX.read(base64ToAb(t.fileBase64),{type:'array',cellStyles:true});
   t.variables.forEach(v=>{
     const ws=wb.Sheets[v.sheet]; if(!ws) return;
@@ -997,7 +1032,7 @@ async function generateXlsx(t, values){
     ws[v.addr]=cell;
   });
   const arr=XLSX.write(wb,{type:'array',bookType:'xlsx',cellStyles:true});
-  download(new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `${t.name}.xlsx`);
+  download(new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `${filename}.xlsx`);
 }
 
 /* ============================================================
