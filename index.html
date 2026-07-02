@@ -37,7 +37,7 @@
   .crumbs{color:var(--muted); font-size:13px; margin-bottom:18px}
   .crumbs b{color:var(--ink)}
   h1{font-size:26px; margin:0 0 6px; letter-spacing:.01em}
-  h2{font-size:19px; margin:0 0 14px}
+  h2{font-size:19px; margin:0 0 6px} /* 下の余白を 14px から 6px に修正 */
   .lead{color:var(--muted); font-size:14px; margin:0 0 26px} /* 文字サイズを14pxに小さく調整 */
   .grid{display:grid; gap:18px}
   .grid.cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
@@ -160,6 +160,12 @@
   .warnbox{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
   .thumb-preview{margin-top:12px;display:flex;justify-content:center}
   .thumb-preview img{max-height:110px;border-radius:6px;border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+
+  /* 2の方法：マスクエリア内のh2（項目設定）の見栄えを「フォーマット名」に完全同期させる */
+  #maskArea > h2 {
+    font-size: 14px;
+    font-weight: 600;
+  }
 </style>
 </head>
 <body>
@@ -184,15 +190,15 @@
 
 <script>
 /* ============================================================
-   GAS Web App URL（バックグラウンドに固定）
-   ※デプロイ時はここに /exec のURLを設定してください。
-     UI上には表示されず、利用者からは見えません。
+    GAS Web App URL（バックグラウンドに固定）
+    ※デプロイ時はここに /exec のURLを設定してください。
+      UI上には表示されず、利用者からは見えません。
 ============================================================ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdmGSK0E6UXAfDoYL-z0kdaTlb5q4uQQQzJqIeL4FN981u08GQXzSFA0xkEN7frQ7mbw/exec';
 
 /* ============================================================
-   ストレージ層（localStorageを試し、使えなければメモリ保持）
-   ※自分のサーバー/GASにホストすれば永続化されます
+    ストレージ層（localStorageを試し、使えなければメモリ保持）
+    ※自分のサーバー/GASにホストすれば永続化されます
 ============================================================ */
 const Store = (() => {
   let mem = {};
@@ -206,7 +212,7 @@ const Store = (() => {
 })();
 
 /* ============================================================
-   アプリ状態
+    アプリ状態
 ============================================================ */
 const state = {
   view: 'home',
@@ -220,7 +226,7 @@ function saveTemplates(){ Store.set('templates', state.templates); }
 function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
 
 /* ============================================================
-   ユーティリティ
+    ユーティリティ
 ============================================================ */
 function toast(msg, isErr){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(()=>t.className='toast',2600); }
 function loading(on, text){ const l=document.getElementById('loading'); document.getElementById('loadingText').textContent=text||'AIが処理しています…'; l.classList.toggle('show',!!on); }
@@ -231,7 +237,7 @@ function base64ToAb(b64){ const bin=atob(b64),len=bin.length,bytes=new Uint8Arra
 function download(blob, filename){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
 
 /* ============================================================
-   AI呼び出し（すべてGAS Web App経由でGeminiを実行）
+    AI呼び出し（すべてGAS Web App経由でGeminiを実行）
 ============================================================ */
 function gasReady(){ return GAS_URL && !/PUT_YOUR_DEPLOY_ID_HERE/.test(GAS_URL); }
 async function callAI(action, payload){
@@ -248,7 +254,7 @@ async function callAI(action, payload){
 }
 
 /* ============================================================
-   ルーター
+    ルーター
 ============================================================ */
 function go(view, arg){
   state.view=view; render(view, arg); window.scrollTo(0,0);
@@ -257,11 +263,11 @@ function render(view, arg){
   const app=document.getElementById('app');
   app.innerHTML='';
   ({ home:viewHome, templates:viewTemplates,
-     templateNew:viewTemplateNew }[view]||viewHome)(app, arg);
+      templateNew:viewTemplateNew }[view]||viewHome)(app, arg);
 }
 
 /* ============================================================
-   画面：ホーム
+    画面：ホーム
 ============================================================ */
 function viewHome(app){
   app.innerHTML = `
@@ -338,7 +344,7 @@ function renderMakeWorkarea(){
 }
 
 /* ============================================================
-   画面：フォーマット一覧
+    画面：フォーマット一覧
 ============================================================ */
 function viewTemplates(app){
   app.innerHTML = `
@@ -368,7 +374,7 @@ function viewTemplates(app){
 }
 
 /* ============================================================
-   フォーマット保存フロー
+    フォーマット保存フロー
 ============================================================ */
 function startTemplateNew(){ state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], maskMode:'add', editId:null }; go('templateNew'); }
 
@@ -635,7 +641,7 @@ function tryAddDocxMaskFromSelection(){
   const sel=window.getSelection();
   if(!sel || !sel.rangeCount) return;
   const raw=sel.toString();
-  if(!raw || !raw.trim()) return;                    // 選択なし → 無視
+  if(!raw || !raw.trim()) return;                // 選択なし → 無視
   const range=sel.getRangeAt(0);
   if(!body.contains(range.startContainer)) return;   // プレビュー外 → 無視
   // 既存マスクの内側だけを選択した場合は追加しない（除去はクリックで行う）
@@ -802,7 +808,7 @@ function saveTemplate(){
 }
 
 /* ============================================================
-   契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
+    契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
 ============================================================ */
 function switchMode(mode){ state.make.mode=mode; if(mode==='auto'&&!state.make.source){state.make.source='';} renderMakeWorkarea(); }
 
@@ -914,7 +920,7 @@ function renderMakeFormFields(){
 }
 
 /* ============================================================
-   内容確認ダイアログ → 出力
+    内容確認ダイアログ → 出力
 ============================================================ */
 function openConfirm(){
   const m=state.make, t=m.template;
@@ -1037,7 +1043,7 @@ async function generateXlsx(t, values, filename){
 }
 
 /* ============================================================
-   起動
+    起動
 ============================================================ */
 // 外部ライブラリの読み込み確認（CDN失敗時に原因を分かりやすく表示）
 (function checkLibs(){
