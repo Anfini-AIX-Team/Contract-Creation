@@ -37,7 +37,7 @@
   .crumbs{color:var(--muted); font-size:13px; margin-bottom:18px}
   .crumbs b{color:var(--ink)}
   h1{font-size:26px; margin:0 0 6px; letter-spacing:.01em}
-  h2{font-size:19px; margin:0 0 6px} /* 下の余白を 14px から 6px に修正 */
+  h2{font-size:19px; margin:0 0 14px}
   .lead{color:var(--muted); font-size:14px; margin:0 0 26px} /* 文字サイズを14pxに小さく調整 */
   .grid{display:grid; gap:18px}
   .grid.cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
@@ -64,6 +64,8 @@
   .row.end{justify-content:flex-end}
   .field{margin-bottom:18px}
   label.lbl{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+  /* 「フォーマット名」ラベルと「項目設定」見出しなど、フォーム内の小見出しをそろえるための共通クラス */
+  .section-heading{display:block;font-weight:600;font-size:14px;margin:0 0 6px;color:var(--ink)}
   .hint{color:var(--muted);font-size:13px;margin-top:4px}
   input[type=text],textarea,select{
     width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;
@@ -160,12 +162,6 @@
   .warnbox{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
   .thumb-preview{margin-top:12px;display:flex;justify-content:center}
   .thumb-preview img{max-height:110px;border-radius:6px;border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.06)}
-
-  /* 2の方法：マスクエリア内のh2（項目設定）の見栄えを「フォーマット名」に完全同期させる */
-  #maskArea > h2 {
-    font-size: 14px;
-    font-weight: 600;
-  }
 </style>
 </head>
 <body>
@@ -181,24 +177,20 @@
     <button class="link-btn" onclick="go('templates')">フォーマット管理</button>
   </div>
 </header>
-
 <main class="wrap" id="app"></main>
-
 <div class="loading-overlay" id="loading"><div class="loading-box"><span class="spinner"></span><span id="loadingText">AIが処理しています…</span></div></div>
 <div class="backdrop" id="backdrop"></div>
 <div class="toast" id="toast"></div>
-
 <script>
 /* ============================================================
-    GAS Web App URL（バックグラウンドに固定）
-    ※デプロイ時はここに /exec のURLを設定してください。
-      UI上には表示されず、利用者からは見えません。
+   GAS Web App URL（バックグラウンドに固定）
+   ※デプロイ時はここに /exec のURLを設定してください。
+     UI上には表示されず、利用者からは見えません。
 ============================================================ */
 const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdmGSK0E6UXAfDoYL-z0kdaTlb5q4uQQQzJqIeL4FN981u08GQXzSFA0xkEN7frQ7mbw/exec';
-
 /* ============================================================
-    ストレージ層（localStorageを試し、使えなければメモリ保持）
-    ※自分のサーバー/GASにホストすれば永続化されます
+   ストレージ層（localStorageを試し、使えなければメモリ保持）
+   ※自分のサーバー/GASにホストすれば永続化されます
 ============================================================ */
 const Store = (() => {
   let mem = {};
@@ -210,9 +202,8 @@ const Store = (() => {
     persistent: ok
   };
 })();
-
 /* ============================================================
-    アプリ状態
+   アプリ状態
 ============================================================ */
 const state = {
   view: 'home',
@@ -224,9 +215,8 @@ const state = {
 };
 function saveTemplates(){ Store.set('templates', state.templates); }
 function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
-
 /* ============================================================
-    ユーティリティ
+   ユーティリティ
 ============================================================ */
 function toast(msg, isErr){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(()=>t.className='toast',2600); }
 function loading(on, text){ const l=document.getElementById('loading'); document.getElementById('loadingText').textContent=text||'AIが処理しています…'; l.classList.toggle('show',!!on); }
@@ -235,9 +225,8 @@ function fileToBase64(file){ return new Promise((res,rej)=>{const r=new FileRead
 function abToBase64(ab){ let bin='';const b=new Uint8Array(ab),ck=0x8000; for(let i=0;i<b.length;i+=ck) bin+=String.fromCharCode.apply(null,b.subarray(i,i+ck)); return btoa(bin); }
 function base64ToAb(b64){ const bin=atob(b64),len=bin.length,bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
 function download(blob, filename){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
-
 /* ============================================================
-    AI呼び出し（すべてGAS Web App経由でGeminiを実行）
+   AI呼び出し（すべてGAS Web App経由でGeminiを実行）
 ============================================================ */
 function gasReady(){ return GAS_URL && !/PUT_YOUR_DEPLOY_ID_HERE/.test(GAS_URL); }
 async function callAI(action, payload){
@@ -252,9 +241,8 @@ async function callAI(action, payload){
   if(data.error) throw new Error('AIエラー: '+data.error);
   return data;
 }
-
 /* ============================================================
-    ルーター
+   ルーター
 ============================================================ */
 function go(view, arg){
   state.view=view; render(view, arg); window.scrollTo(0,0);
@@ -263,11 +251,10 @@ function render(view, arg){
   const app=document.getElementById('app');
   app.innerHTML='';
   ({ home:viewHome, templates:viewTemplates,
-      templateNew:viewTemplateNew }[view]||viewHome)(app, arg);
+     templateNew:viewTemplateNew }[view]||viewHome)(app, arg);
 }
-
 /* ============================================================
-    画面：ホーム
+   画面：ホーム
 ============================================================ */
 function viewHome(app){
   app.innerHTML = `
@@ -289,7 +276,6 @@ function viewHome(app){
   renderSideTplList();
   renderMakeWorkarea();
 }
-
 /* ---- 左サイドバー：フォーマット一覧 ---- */
 function renderSideTplList(){
   const list=document.getElementById('sideTplList');
@@ -316,7 +302,6 @@ function selectMakeTemplate(t){
   renderSideTplList();
   renderMakeWorkarea();
 }
-
 /* ---- 右作業エリア：モード選択＋フォーム ---- */
 function renderMakeWorkarea(){
   const box=document.getElementById('makeWorkarea');
@@ -342,9 +327,8 @@ function renderMakeWorkarea(){
   if(m.mode==='auto') renderAutoBox();
   renderMakeFormFields();
 }
-
 /* ============================================================
-    画面：フォーマット一覧
+   画面：フォーマット一覧
 ============================================================ */
 function viewTemplates(app){
   app.innerHTML = `
@@ -372,12 +356,10 @@ function viewTemplates(app){
     list.appendChild(d);
   });
 }
-
 /* ============================================================
-    フォーマット保存フロー
+   フォーマット保存フロー
 ============================================================ */
 function startTemplateNew(){ state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], maskMode:'add', editId:null }; go('templateNew'); }
-
 /* 既存フォーマットを編集用に読み込む（同じファイル・マスクを引き継いで再調整） */
 async function startTemplateEdit(id){
   const t=state.templates.find(x=>x.id===id);
@@ -400,7 +382,6 @@ async function startTemplateEdit(id){
     go('templateNew');
   }catch(e){ loading(false); toast('読み込みに失敗しました: '+e.message, true); }
 }
-
 function viewTemplateNew(app){
   const d=state.draft;
   const editing=!!d.editId;
@@ -409,12 +390,10 @@ function viewTemplateNew(app){
     <p class="lead">${editing
       ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'
       : '① ファイルをアップロード → ② フォーマット名を入力 → ③ 可変部分をマスク → ④ AIが項目名を提案 → ⑤ 調整して保存'}</p>
-
     <div class="field" style="max-width:520px">
-      <label class="lbl">${editing?'':'① '}フォーマット名</label>
+      <label class="lbl section-heading">${editing?'':'① '}フォーマット名</label>
       <input type="text" id="tplName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
     </div>
-
     <div id="uploadArea" ${editing?'style="display:none"':''}>
       <label class="lbl">② フォーマットファイル（Word .docx / Excel .xlsx）</label>
       <div class="dropzone" id="drop">
@@ -424,18 +403,15 @@ function viewTemplateNew(app){
       </div>
       <input type="file" id="fileInput" accept=".docx,.xlsx" style="display:none">
     </div>
-
     ${editing?`<div class="row" style="max-width:520px;margin:-6px 0 4px">
       <button class="btn ghost sm" id="replaceFileBtn">⬆ ファイルを差し替える</button>
       <span class="hint" style="margin:0">別のWord/Excelに変更するとマスクはリセットされます</span>
       <input type="file" id="replaceFileInput" accept=".docx,.xlsx" style="display:none">
     </div>`:''}
-
     <div id="maskArea" style="display:none;margin-top:24px"></div>
   `;
   document.getElementById('tplName').oninput=e=>d.name=e.target.value;
   const fireFile=f=>{ if(f) handleTemplateFile(f); };
-
   // 新規アップロード用ドロップゾーン
   const drop=document.getElementById('drop');
   const fi=document.getElementById('fileInput');
@@ -453,10 +429,8 @@ function viewTemplateNew(app){
     rin.onchange=e=>fireFile(e.target.files[0]);
     replaceBtn.onclick=()=>rin.click();
   }
-
   if(d.fileBase64){ const ua=document.getElementById('uploadArea'); if(ua) ua.style.display='none'; buildMaskArea(); }
 }
-
 async function handleTemplateFile(file){
   const d=state.draft;
   const isDocx = /\.docx$/i.test(file.name);
@@ -483,13 +457,12 @@ async function handleTemplateFile(file){
     buildMaskArea();
   }catch(e){ loading(false); toast('ファイルの読み込みに失敗しました: '+e.message, true); }
 }
-
 function buildMaskArea(){
   const d=state.draft;
   const area=document.getElementById('maskArea');
   area.style.display='block';
   area.innerHTML = `
-    <h2>項目設定</h2>
+    <h2 class="section-heading">項目設定</h2>
     <div class="split">
       <div class="preview-pane">
         <div class="pane-head">
@@ -522,9 +495,7 @@ function buildMaskArea(){
         </div>
       </div>
     </div>`;
-
   const body=document.getElementById('previewBody');
-
   // モード切替トグル
   const toggle=document.getElementById('maskToggle');
   if(toggle){
@@ -532,7 +503,6 @@ function buildMaskArea(){
       btn.onclick=()=>{ setMaskMode(btn.dataset.mode); };
     });
   }
-
   if(d.fileType==='docx'){
     renderDocxPreview(body);
     // 鉛筆モード：選択が終わった瞬間（マウスアップ）に自動でマスク
@@ -554,7 +524,6 @@ function buildMaskArea(){
   document.getElementById('saveTplBtn').onclick=saveTemplate;
   refreshVarList();
 }
-
 /* ---- マスクモード（鉛筆＝追加 / 消しゴム＝除去）---- */
 function setMaskMode(mode){
   state.draft.maskMode = (mode==='erase') ? 'erase' : 'add';
@@ -587,7 +556,6 @@ function applyMaskModeUI(){
     help.style.marginTop = '12px';
   }
 }
-
 /* ---- docx マスク ---- */
 // マスクした「その出現位置」だけをハイライトする（同一文言の他の箇所は色付けしない）
 function renderDocxPreview(body){
@@ -641,7 +609,7 @@ function tryAddDocxMaskFromSelection(){
   const sel=window.getSelection();
   if(!sel || !sel.rangeCount) return;
   const raw=sel.toString();
-  if(!raw || !raw.trim()) return;                // 選択なし → 無視
+  if(!raw || !raw.trim()) return;                    // 選択なし → 無視
   const range=sel.getRangeAt(0);
   if(!body.contains(range.startContainer)) return;   // プレビュー外 → 無視
   // 既存マスクの内側だけを選択した場合は追加しない（除去はクリックで行う）
@@ -685,7 +653,6 @@ function countOcc(hay, needle, endPos){
   return c;
 }
 function allIndexOf(hay, needle){ const r=[]; if(!needle) return r; let i=0; while((i=hay.indexOf(needle,i))>=0){ r.push(i); i+=needle.length; } return r; }
-
 /* ---- xlsx マスク ---- */
 function renderXlsxPreview(body){
   const d=state.draft;
@@ -728,7 +695,6 @@ function toggleCell(sheet,addr,val,td){
   // 鉛筆（追加）：未マスクなら追加。既にマスク済みならそのまま。
   if(i<0){ d.variables.push({ key:uid(), sheet, addr, originalText:val, propName:'' }); td.classList.add('picked'); refreshVarList(); }
 }
-
 /* ---- 変数リスト ---- */
 function removeVar(key){
   const d=state.draft;
@@ -765,7 +731,6 @@ function refreshVarList(){
     list.appendChild(item);
   });
 }
-
 /* ---- ④ AIで項目名生成 ---- */
 async function aiGenerateNames(){
   const d=state.draft;
@@ -777,7 +742,6 @@ async function aiGenerateNames(){
     loading(false); refreshVarList(); toast('項目名を生成しました');
   }catch(e){ loading(false); toast(e.message, true); }
 }
-
 /* ---- ⑥ 保存 ---- */
 function saveTemplate(){
   const d=state.draft;
@@ -788,7 +752,6 @@ function saveTemplate(){
   // propName重複チェック
   const names=d.variables.map(v=>v.propName.trim());
   if(new Set(names).size!==names.length){ toast('項目名が重複しています', true); return; }
-
   const record={
     id: d.editId || uid(),
     name:d.name.trim(), fileType:d.fileType, fileBase64:d.fileBase64,
@@ -806,12 +769,10 @@ function saveTemplate(){
   }
   go('templates');
 }
-
 /* ============================================================
-    契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
+   契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
 ============================================================ */
 function switchMode(mode){ state.make.mode=mode; if(mode==='auto'&&!state.make.source){state.make.source='';} renderMakeWorkarea(); }
-
 function renderAutoBox(){
   const box=document.getElementById('autoBox');
   const m=state.make;
@@ -820,7 +781,6 @@ function renderAutoBox(){
   const imgPreviewHtml = m.image 
     ? `<div class="thumb-preview"><img src="data:${m.image.mime};base64,${m.image.base64}" alt="プレビュー"></div>` 
     : '';
-
   box.innerHTML=`
     <div class="card" style="margin-bottom:22px">
       <h2 style="font-size:16px">情報ソースを貼り付け</h2>
@@ -845,7 +805,6 @@ function renderAutoBox(){
       </div>
     </div>`;
   document.getElementById('srcText').oninput=e=>m.source=e.target.value;
-
   const imgDrop=document.getElementById('imgDrop');
   const srcImg=document.getElementById('srcImg');
   const setImg=async f=>{
@@ -866,10 +825,8 @@ function renderAutoBox(){
   imgDrop.ondragover=e=>{e.preventDefault();imgDrop.classList.add('drag');};
   imgDrop.ondragleave=()=>imgDrop.classList.remove('drag');
   imgDrop.ondrop=e=>{e.preventDefault();imgDrop.classList.remove('drag'); setImg(e.dataTransfer.files[0]);};
-
   document.getElementById('analyzeBtn').onclick=analyzeSource;
 }
-
 async function analyzeSource(){
   const m=state.make, t=m.template;
   if(!m.source.trim() && !m.image){ toast('テキストを貼り付けるか、画像を添付してください', true); return; }
@@ -895,7 +852,6 @@ async function analyzeSource(){
     toast('AI自動入力を反映しました。内容をご確認ください。');
   }catch(e){ loading(false); toast(e.message, true); }
 }
-
 function renderMakeFormFields(){
   const m=state.make, t=m.template;
   const box=document.getElementById('formBox');
@@ -918,9 +874,8 @@ function renderMakeFormFields(){
   });
   document.getElementById('confirmBtn').onclick=openConfirm;
 }
-
 /* ============================================================
-    内容確認ダイアログ → 出力
+   内容確認ダイアログ → 出力
 ============================================================ */
 function openConfirm(){
   const m=state.make, t=m.template;
@@ -933,7 +888,6 @@ function openConfirm(){
   
   // 初期ファイル名をセット
   const defaultFilename = m.outputFilename || t.name;
-
   bd.innerHTML=`
     <div class="modal">
       <div class="modal-head"><h2>内容の確認</h2><p class="hint" style="margin:4px 0 0">このまま出力します。必要なら修正してください。</p></div>
@@ -954,7 +908,6 @@ function openConfirm(){
   
   const fnInput = document.getElementById('outputFilenameInput');
   fnInput.oninput = e => { m.outputFilename = e.target.value.trim(); };
-
   bd.querySelectorAll('input[data-prop]').forEach(inp=>{
     inp.oninput=e=>{ m.values[e.target.dataset.prop]=e.target.value; };
   });
@@ -966,7 +919,6 @@ function openConfirm(){
     renderMakeFormFields(); 
   };
 }
-
 async function generateOutput(filename){
   const m=state.make, t=m.template;
   try{
@@ -977,7 +929,6 @@ async function generateOutput(filename){
     toast('契約書を出力しました');
   }catch(e){ loading(false); toast('生成エラー: '+e.message, true); }
 }
-
 /* ---- docx 生成（XMLを直接置換して書式を保持 / 出現位置ごとに個別置換） ---- */
 async function generateDocx(t, values, filename){
   const zip=new PizZip(base64ToAb(t.fileBase64));
@@ -1024,7 +975,6 @@ function replaceRangeInRuns(runs, start, end, value){
   }
   return true;
 }
-
 /* ---- xlsx 生成（セル値を書き換えて書式を保持） ---- */
 async function generateXlsx(t, values, filename){
   const wb=XLSX.read(base64ToAb(t.fileBase64),{type:'array',cellStyles:true});
@@ -1041,9 +991,8 @@ async function generateXlsx(t, values, filename){
   const arr=XLSX.write(wb,{type:'array',bookType:'xlsx',cellStyles:true});
   download(new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `${filename}.xlsx`);
 }
-
 /* ============================================================
-    起動
+   起動
 ============================================================ */
 // 外部ライブラリの読み込み確認（CDN失敗時に原因を分かりやすく表示）
 (function checkLibs(){
