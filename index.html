@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>契約書自動作成</title>
-<!-- 外部ライブラリ（デプロイ環境ではCDNから読み込まれます） -->
 <script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/pizzip@3.2.0/dist/pizzip.min.js"></script>
@@ -17,6 +16,7 @@
     --danger:#EF4444; --radius:10px; --shadow:0 1px 4px rgba(17,24,39,.07),0 8px 24px rgba(17,24,39,.05);
   }
   *{box-sizing:border-box}
+  html{overflow-y:scroll}
   body{
     margin:0; background:var(--bg); color:var(--ink);
     font-family:'Noto Sans JP','Inter',"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,-apple-system,"Segoe UI",sans-serif;
@@ -28,7 +28,8 @@
   }
   .top-inner{max-width:1040px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:14px}
   .logo{display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:700; letter-spacing:.02em}
-  .logo .badge{width:30px;height:30px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:15px}
+  .logo .badge{width:32px;height:32px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center}
+  .logo .badge svg{width:18px;height:18px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
   .top-spacer{flex:1}
   .link-btn{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:8px 10px;border-radius:8px;font-family:inherit}
   .link-btn:hover{background:var(--brand-soft);color:var(--brand-ink)}
@@ -78,6 +79,21 @@
   .dropzone .big{font-size:34px;margin-bottom:6px}
   .split{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
   @media(max-width:820px){.split{grid-template-columns:1fr}}
+  /* 契約書作成画面：左サイドバー（フォーマット選択）＋右作業エリア */
+  .make-shell{display:grid;grid-template-columns:264px 1fr;gap:20px;align-items:start}
+  @media(max-width:820px){.make-shell{grid-template-columns:1fr}}
+  .make-sidebar{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden;position:sticky;top:78px}
+  @media(max-width:820px){.make-sidebar{position:static}}
+  .make-sidebar-head{padding:14px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;justify-content:space-between;font-weight:700;font-size:13px;background:#F9FAFB}
+  .make-sidebar-list{max-height:640px;overflow:auto;padding:8px}
+  .side-tpl-item{display:flex;align-items:center;gap:10px;padding:9px 8px;border-radius:10px;cursor:pointer;transition:.12s}
+  .side-tpl-item:hover{background:var(--brand-soft)}
+  .side-tpl-item.sel{background:var(--brand-soft);box-shadow:inset 0 0 0 1.5px var(--brand)}
+  .side-tpl-item .tpl-ico{width:32px;height:32px;font-size:10px;border-radius:8px;flex:none}
+  .side-tpl-item .tpl-meta .nm{font-size:13.5px}
+  .side-tpl-item .tpl-meta .sub{font-size:11.5px}
+  .make-workarea{min-height:320px}
+  .make-workarea .empty{background:var(--surface);border:1px dashed var(--line);border-radius:var(--radius)}
   .preview-pane{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
   .pane-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:#F9FAFB}
   .pane-head .t{font-weight:600;font-size:14px}
@@ -142,15 +158,21 @@
   .loading-box{background:#fff;padding:24px 30px;border-radius:14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;font-weight:600}
   .loading-box .spinner{border-color:var(--brand-soft);border-top-color:var(--brand)}
   .warnbox{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+  .thumb-preview{margin-top:12px;display:flex;justify-content:center}
+  .thumb-preview img{max-height:110px;border-radius:6px;border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.06)}
 </style>
 </head>
 <body>
 <header class="top">
   <div class="top-inner">
-    <div class="logo" onclick="go('home')"><span class="badge">契</span><span>契約書自動作成</span></div>
+    <div class="logo" onclick="go('home')">
+      <span class="badge">
+        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+      </span>
+      <span>契約書自動作成</span>
+    </div>
     <div class="top-spacer"></div>
-    <button class="link-btn" onclick="go('templates')">フォーマット一覧</button>
-    <button class="link-btn" onclick="go('settings')">⚙ 設定</button>
+    <button class="link-btn" onclick="go('templates')">フォーマット管理</button>
   </div>
 </header>
 
@@ -192,9 +214,7 @@ const state = {
   // フォーマット作成中の一時データ
   draft: null,
   // 契約書作成中の一時データ
-  make: null,
-  // 画面遷移の直前ビューを保持（設定画面から戻る用）
-  prevView: 'home'
+  make: null
 };
 function saveTemplates(){ Store.set('templates', state.templates); }
 function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
@@ -231,15 +251,13 @@ async function callAI(action, payload){
    ルーター
 ============================================================ */
 function go(view, arg){
-  // 設定画面へ入る直前のビューを覚えておく（設定画面自身は記録しない）
-  if(view==='settings' && state.view!=='settings'){ state.prevView=state.view; }
   state.view=view; render(view, arg); window.scrollTo(0,0);
 }
 function render(view, arg){
   const app=document.getElementById('app');
   app.innerHTML='';
-  ({ home:viewHome, settings:viewSettings, templates:viewTemplates,
-     templateNew:viewTemplateNew, makeSelect:viewMakeSelect, makeForm:viewMakeForm }[view]||viewHome)(app, arg);
+  ({ home:viewHome, templates:viewTemplates,
+     templateNew:viewTemplateNew }[view]||viewHome)(app, arg);
 }
 
 /* ============================================================
@@ -247,73 +265,76 @@ function render(view, arg){
 ============================================================ */
 function viewHome(app){
   app.innerHTML = `
-    <h1>契約書自動作成</h1>
-    <p class="lead">フォーマットを登録し、フォーム入力またはAI解析で契約書をワンクリック生成します。</p>
+    <h1>契約書作成</h1>
+    <p class="lead">左のフォーマット一覧から使用するフォーマットを選び、入力方法を選択してください。</p>
     ${gasReady() ? '' : '<div class="warnbox">⚠ AI接続先が未設定です。手動入力機能はそのままご利用いただけます。</div>'}
-    <div class="grid cards">
-      <div class="card click" onclick="startTemplateNew()">
-        <div class="ico">＋</div><h3>フォーマットを保存する</h3>
-        <p>Word / Excel をアップロードし、可変部分をマスクしてフォーマットとして登録します。</p>
-      </div>
-      <div class="card click" onclick="go('makeSelect')">
-        <div class="ico">✎</div><h3>契約書を作成する</h3>
-        <p>登録済みのフォーマットを選び、手動入力またはAI自動入力で内容を埋めて出力します。</p>
-      </div>
-      <div class="card click" onclick="go('templates')">
-        <div class="ico">📁</div><h3>フォーマットを管理する</h3>
-        <p>登録済みのフォーマット（${state.templates.length}件）を確認・削除します。</p>
-      </div>
+    <div class="make-shell">
+      <aside class="make-sidebar">
+        <div class="make-sidebar-head">
+          <span>フォーマット</span>
+          <span class="pill">${state.templates.length}件</span>
+        </div>
+        <div class="make-sidebar-list" id="sideTplList"></div>
+      </aside>
+      <section class="make-workarea" id="makeWorkarea"></section>
     </div>
     ${Store.persistent ? '' : '<p class="hint" style="margin-top:22px">※このプレビュー環境ではブラウザ保存が使えないため、リロードでフォーマットが消えます。ご自身のサーバーやGASに設置すると保存されます。</p>'}
   `;
+  renderSideTplList();
+  renderMakeWorkarea();
 }
 
-/* ============================================================
-   画面：設定
-============================================================ */
-function viewSettings(app){
-  const backLabel={ home:'ホーム', templates:'フォーマット一覧', templateNew:'フォーマット保存',
-    makeSelect:'契約書作成', makeForm:'入力フォーム' }[state.prevView] || '前の画面';
-  app.innerHTML = `
-    <div class="crumbs"><b>設定</b></div>
-    <div class="row" style="justify-content:space-between">
-      <h1 style="margin:0">設定</h1>
-      <button class="btn ghost sm" onclick="backFromSettings()">← ${esc(backLabel)}に戻る</button>
-    </div>
-    <p class="lead">AIはすべて管理者が設定したGAS Web App経由でGeminiを呼び出します。</p>
-    <div class="card" style="max-width:640px">
-      <div class="field" style="margin-bottom:0">
-        <label class="lbl">AI接続状態</label>
-        <div class="row" style="gap:8px">
-          <span class="pill" style="${gasReady()
-            ? 'background:var(--brand-soft);color:var(--brand-ink)'
-            : 'background:var(--accent-soft);color:#8a4a29'}">
-            ${gasReady() ? '● 接続先設定済み' : '● 未設定'}
-          </span>
-          ${gasReady() ? '<button class="btn ghost sm" onclick="testGas()">接続テスト</button>' : ''}
-        </div>
-        <div class="hint" style="margin-top:10px">
-          接続先URLはアプリ内に固定されており、画面には表示されません。変更が必要な場合は管理者にご連絡ください。
-        </div>
-      </div>
-    </div>
-    <div class="card" style="max-width:640px;margin-top:16px">
-      <div class="field" style="margin-bottom:0">
-        <label class="lbl">データ保存</label>
-        <div class="hint" style="margin-top:0">
-          ${Store.persistent
-            ? '登録したフォーマットはこのブラウザに保存されます。'
-            : 'この環境ではブラウザ保存が使えないため、リロードでフォーマットが消えます。'}
-        </div>
-      </div>
-    </div>
-  `;
+/* ---- 左サイドバー：フォーマット一覧 ---- */
+function renderSideTplList(){
+  const list=document.getElementById('sideTplList');
+  if(!list) return;
+  if(!state.templates.length){
+    list.innerHTML='<div class="empty" style="padding:20px 10px;font-size:13px">まだフォーマットがありません。<br>右上の「フォーマット管理」から追加してください。</div>';
+    return;
+  }
+  list.innerHTML='';
+  const curId=state.make && state.make.template && state.make.template.id;
+  state.templates.forEach(t=>{
+    const d=document.createElement('div');
+    d.className='side-tpl-item'+(curId===t.id?' sel':'');
+    d.innerHTML=`
+      <div class="tpl-ico ${t.fileType}">${t.fileType.toUpperCase()}</div>
+      <div class="tpl-meta"><div class="nm">${esc(t.name)}</div><div class="sub">${t.variables.length}個の変数</div></div>`;
+    d.onclick=()=>selectMakeTemplate(t);
+    list.appendChild(d);
+  });
 }
-function backFromSettings(){ go(state.prevView||'home'); }
-async function testGas(){
-  if(!gasReady()){ toast('接続先が未設定です', true); return; }
-  try{ loading(true,'接続確認中…'); const r=await fetch(GAS_URL); await r.text(); loading(false); toast('接続OK'); }
-  catch(e){ loading(false); toast('接続に失敗しました', true); }
+function selectMakeTemplate(t){
+  const already=state.make && state.make.template && state.make.template.id===t.id;
+  if(!already){ state.make={ template:t, mode:'manual', values:{}, source:'', image:null }; }
+  renderSideTplList();
+  renderMakeWorkarea();
+}
+
+/* ---- 右作業エリア：モード選択＋フォーム ---- */
+function renderMakeWorkarea(){
+  const box=document.getElementById('makeWorkarea');
+  if(!box) return;
+  const m=state.make;
+  if(!m || !m.template){
+    box.innerHTML=`<div class="empty" style="padding:70px 20px">← 左のフォーマット一覧から契約書のフォーマットを選択してください。</div>`;
+    return;
+  }
+  const t=m.template;
+  box.innerHTML=`
+    <div class="row" style="justify-content:space-between;align-items:center">
+      <h2 style="margin:0;font-size:18px">${esc(t.name)}</h2>
+      <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
+    </div>
+    <div class="tabs" style="margin-top:14px;margin-bottom:0">
+      <button class="${m.mode==='manual'?'on':''}" onclick="switchMode('manual')">⌨ 手動入力</button>
+      <button class="${m.mode==='auto'?'on':''}" onclick="switchMode('auto')">🤖 AI自動入力</button>
+    </div>
+    <div id="autoBox"></div>
+    <div id="formBox"></div>
+  `;
+  if(m.mode==='auto') renderAutoBox();
+  renderMakeFormFields();
 }
 
 /* ============================================================
@@ -321,9 +342,8 @@ async function testGas(){
 ============================================================ */
 function viewTemplates(app){
   app.innerHTML = `
-    <div class="crumbs"><b>フォーマット一覧</b></div>
     <div class="row" style="justify-content:space-between;margin-bottom:18px">
-      <h1 style="margin:0">フォーマット一覧</h1>
+      <h1 style="margin:0">フォーマット管理</h1>
       <button class="btn" onclick="startTemplateNew()">＋ 新規フォーマット</button>
     </div>
     <div class="grid" id="tplList"></div>`;
@@ -338,9 +358,11 @@ function viewTemplates(app){
       <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
       <button class="btn ghost sm editBtn" title="編集">✎ 編集</button>
       <button class="icon-btn delBtn" title="削除">🗑</button>`;
-    d.querySelector('.tpl-meta').onclick=()=>{ state.make={template:t}; go('makeSelect'); };
+    d.querySelector('.tpl-meta').onclick=()=>{ state.make={template:t, mode:'manual', values:{}, source:'', image:null}; go('home'); };
     d.querySelector('.editBtn').onclick=(e)=>{ e.stopPropagation(); startTemplateEdit(t.id); };
-    d.querySelector('.delBtn').onclick=(e)=>{ e.stopPropagation(); if(confirm(`「${t.name}」を削除しますか？`)){ state.templates=state.templates.filter(x=>x.id!==t.id); saveTemplates(); viewTemplates(app);} };
+    d.querySelector('.delBtn').onclick=(e)=>{ e.stopPropagation(); if(confirm(`「${t.name}」を削除しますか？`)){
+      if(state.make && state.make.template && state.make.template.id===t.id) state.make=null;
+      state.templates=state.templates.filter(x=>x.id!==t.id); saveTemplates(); viewTemplates(app);} };
     list.appendChild(d);
   });
 }
@@ -377,14 +399,13 @@ function viewTemplateNew(app){
   const d=state.draft;
   const editing=!!d.editId;
   app.innerHTML = `
-    <div class="crumbs">フォーマット${editing?'編集':'保存'} / <b>${editing?esc(d.name||'編集'):'新規作成'}</b></div>
     <h1>フォーマットを${editing?'編集':'保存'}</h1>
     <p class="lead">${editing
       ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'
       : '① ファイルをアップロード → ② フォーマット名を入力 → ③ 可変部分をマスク → ④ AIが項目名を提案 → ⑤ 調整して保存'}</p>
 
     <div class="field" style="max-width:520px">
-      <label class="lbl">${editing?'':'① '}フォーマット名（契約書の種類）</label>
+      <label class="lbl">${editing?'':'① '}フォーマット名</label>
       <input type="text" id="tplName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
     </div>
 
@@ -458,7 +479,7 @@ function buildMaskArea(){
   const area=document.getElementById('maskArea');
   area.style.display='block';
   area.innerHTML = `
-    <h2>③〜⑤ 可変部分をマスクして項目名を決める</h2>
+    <h2>項目設定</h2>
     <div class="split">
       <div class="preview-pane">
         <div class="pane-head">
@@ -546,12 +567,12 @@ function applyMaskModeUI(){
   if(help){
     if(d.fileType==='docx'){
       help.textContent = d.maskMode==='erase'
-        ? '🩹 除去モード：黄色いマスクをクリックすると解除します'
-        : '✏️ 追加モード：置き換えたい文字をドラッグで選択するだけでマスクされます';
+        ? '🩹 除去モード：黄色いマスクをクリックすると解除します。'
+        : '✏️ 追加モード：置き換えたい文字をドラッグで選択するとマスクされます。';
     }else{
       help.textContent = d.maskMode==='erase'
-        ? '🩹 除去モード：マスク済み（黄色）のセルをクリックで解除します'
-        : '✏️ 追加モード：可変にしたいセルをクリックするとマスクされます';
+        ? '🩹 除去モード：マスク済み（黄色）のセルをクリックで解除します。'
+        : '✏️ 追加モード：可変にしたいセルをクリックするとマスクされます。';
     }
   }
 }
@@ -776,86 +797,39 @@ function saveTemplate(){
 }
 
 /* ============================================================
-   契約書作成：フォーマット選択＋モード選択
+   契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
 ============================================================ */
-function viewMakeSelect(app){
-  const preSel=state.make && state.make.template;
-  app.innerHTML = `
-    <div class="crumbs">契約書作成 / <b>フォーマットを選ぶ</b></div>
-    <h1>契約書を作成</h1>
-    <p class="lead">使用するフォーマットを選び、入力方法を選択してください。</p>
-    <h2 style="font-size:16px">① フォーマットを選択</h2>
-    <div class="grid" id="tplPick" style="margin-bottom:26px"></div>
-    <h2 style="font-size:16px">② 入力方法を選択</h2>
-    <div class="grid cards" id="modePick"></div>
-  `;
-  const pick=document.getElementById('tplPick');
-  if(!state.templates.length){ pick.innerHTML='<div class="empty">フォーマットがありません。先にフォーマットを保存してください。</div>'; }
-  let selected=preSel||null;
-  const renderModes=()=>{
-    const mp=document.getElementById('modePick');
-    if(!selected){ mp.innerHTML='<div class="empty">先にフォーマットを選んでください。</div>'; return; }
-    mp.innerHTML=`
-      <div class="card click" id="modeManual"><div class="ico">⌨</div><h3>手動入力</h3><p>各項目をフォームに直接入力して作成します。</p></div>
-      <div class="card click" id="modeAuto"><div class="ico">🤖</div><h3>AI自動入力</h3><p>メール・LINE・スクショから内容をAIが読み取って自動で埋めます。</p></div>`;
-    document.getElementById('modeManual').onclick=()=>{ state.make={ template:selected, mode:'manual', values:{} }; go('makeForm'); };
-    document.getElementById('modeAuto').onclick=()=>{ state.make={ template:selected, mode:'auto', values:{}, source:'', image:null }; go('makeForm'); };
-  };
-  state.templates.forEach(t=>{
-    const d=document.createElement('div'); d.className='tpl-item'+(selected&&selected.id===t.id?' sel':'');
-    d.innerHTML=`<div class="tpl-ico ${t.fileType}">${t.fileType.toUpperCase()}</div>
-      <div class="tpl-meta"><div class="nm">${esc(t.name)}</div><div class="sub">${t.variables.length}個の変数</div></div>
-      ${selected&&selected.id===t.id?'<span class="pill">選択中</span>':''}`;
-    d.onclick=()=>{ selected=t; [...pick.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); [...pick.children].forEach(c=>{const p=c.querySelector('.pill');if(p)p.remove();}); const p=document.createElement('span');p.className='pill';p.textContent='選択中';d.appendChild(p); renderModes(); };
-    pick.appendChild(d);
-  });
-  renderModes();
-}
-
-/* ============================================================
-   契約書作成：入力フォーム（手動＝空 / 自動＝AIで事前充填）
-============================================================ */
-function viewMakeForm(app){
-  const m=state.make;
-  const t=m.template;
-  app.innerHTML = `
-    <div class="crumbs">契約書作成 / ${esc(t.name)} / <b>${m.mode==='manual'?'手動入力':'AI自動入力'}</b></div>
-    <div class="row" style="justify-content:space-between">
-      <h1 style="margin:0">${esc(t.name)}</h1>
-      <button class="btn ghost sm" onclick="go('makeSelect')">← フォーマットを選び直す</button>
-    </div>
-    <div class="tabs" style="margin-top:18px">
-      <button class="${m.mode==='manual'?'on':''}" onclick="switchMode('manual')">⌨ 手動入力</button>
-      <button class="${m.mode==='auto'?'on':''}" onclick="switchMode('auto')">🤖 AI自動入力</button>
-    </div>
-    <div id="autoBox"></div>
-    <div id="formBox"></div>
-  `;
-  if(m.mode==='auto') renderAutoBox();
-  renderMakeFormFields();
-}
-function switchMode(mode){ state.make.mode=mode; if(mode==='auto'&&!state.make.source){state.make.source='';} go('makeForm'); }
+function switchMode(mode){ state.make.mode=mode; if(mode==='auto'&&!state.make.source){state.make.source='';} renderMakeWorkarea(); }
 
 function renderAutoBox(){
   const box=document.getElementById('autoBox');
   const m=state.make;
+  
+  // 画像が既にある場合はプレビュー用の画像タグを生成
+  const imgPreviewHtml = m.image 
+    ? `<div class="thumb-preview"><img src="data:${m.image.mime};base64,${m.image.base64}" alt="プレビュー"></div>` 
+    : '';
+
   box.innerHTML=`
     <div class="card" style="margin-bottom:22px">
       <h2 style="font-size:16px">情報ソースを貼り付け</h2>
       <div class="field">
-        <label class="lbl">メール文面 / LINE・メッセージ本文</label>
+        <label class="lbl">テキスト</label>
         <textarea id="srcText" placeholder="ここに契約内容が書かれた文章を貼り付けてください。">${esc(m.source||'')}</textarea>
       </div>
       <div class="field">
-        <label class="lbl">またはスクショ画像（任意）</label>
+        <label class="lbl">画像</label>
         <div class="dropzone" id="imgDrop" style="padding:22px">
           <div class="big" style="font-size:28px">🖼</div>
-          <div><b>クリック</b>またはドラッグ＆ドロップで画像を添付</div>
+          <div>クリックまたはドラッグ＆ドロップで画像を添付</div>
           <div class="hint" id="imgName">${m.image?('選択中: '+esc(m.image.name)):'メッセージのスクリーンショットを添付できます。'}</div>
+          <div id="thumbContainer">${imgPreviewHtml}</div>
         </div>
         <input type="file" id="srcImg" accept="image/*" style="display:none">
       </div>
-      <button class="btn accent" id="analyzeBtn">🤖 AIで解析してフォームに反映</button>
+      <div class="row end" style="margin-top:14px">
+        <button class="btn accent" id="analyzeBtn">🤖 AIで解析</button>
+      </div>
     </div>`;
   document.getElementById('srcText').oninput=e=>m.source=e.target.value;
 
@@ -864,8 +838,15 @@ function renderAutoBox(){
   const setImg=async f=>{
     if(!f) return;
     if(!/^image\//.test(f.type)){ toast('画像ファイルを選んでください', true); return; }
-    m.image={ name:f.name, mime:f.type, base64:await fileToBase64(f) };
+    const base64Str = await fileToBase64(f);
+    m.image={ name:f.name, mime:f.type, base64:base64Str };
     document.getElementById('imgName').textContent='選択中: '+f.name;
+    
+    // サムネイルを動的に差し替え
+    const container = document.getElementById('thumbContainer');
+    if (container) {
+      container.innerHTML = `<div class="thumb-preview"><img src="data:${f.type};base64,${base64Str}" alt="プレビュー"></div>`;
+    }
   };
   imgDrop.onclick=()=>srcImg.click();
   srcImg.onchange=e=>setImg(e.target.files[0]);
