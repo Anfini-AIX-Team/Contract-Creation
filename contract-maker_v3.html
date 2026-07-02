@@ -1,0 +1,1038 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>契約書自動作成</title>
+<!-- 外部ライブラリ（デプロイ環境ではCDNから読み込まれます） -->
+<script src="https://cdn.jsdelivr.net/npm/mammoth@1.6.0/mammoth.browser.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/pizzip@3.2.0/dist/pizzip.min.js"></script>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600&family=Noto+Sans+JP:wght@400;500;600;700&display=swap');
+  :root{
+    --bg:#F7F8FA; --surface:#ffffff; --ink:#111827; --muted:#6B7280;
+    --line:#E4E7EC; --brand:#3B6EF0; --brand-ink:#2f5de0; --brand-soft:#EEF2FF;
+    --accent:#3B6EF0; --accent-soft:#EEF2FF; --mask:#FEF3C7; --mask-line:#D9A441;
+    --danger:#EF4444; --radius:10px; --shadow:0 1px 4px rgba(17,24,39,.07),0 8px 24px rgba(17,24,39,.05);
+  }
+  *{box-sizing:border-box}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Noto Sans JP','Inter',"Hiragino Kaku Gothic ProN","Yu Gothic",Meiryo,system-ui,-apple-system,"Segoe UI",sans-serif;
+    line-height:1.6; -webkit-font-smoothing:antialiased;
+  }
+  header.top{
+    position:sticky; top:0; z-index:50; background:rgba(247,248,250,.85);
+    backdrop-filter:blur(10px); border-bottom:1px solid var(--line);
+  }
+  .top-inner{max-width:1040px; margin:0 auto; padding:14px 20px; display:flex; align-items:center; gap:14px}
+  .logo{display:flex; align-items:center; gap:10px; cursor:pointer; font-weight:700; letter-spacing:.02em}
+  .logo .badge{width:30px;height:30px;border-radius:9px;background:var(--brand);color:#fff;display:grid;place-items:center;font-size:15px}
+  .top-spacer{flex:1}
+  .link-btn{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:8px 10px;border-radius:8px;font-family:inherit}
+  .link-btn:hover{background:var(--brand-soft);color:var(--brand-ink)}
+  .wrap{max-width:1040px; margin:0 auto; padding:28px 20px 80px}
+  .crumbs{color:var(--muted); font-size:13px; margin-bottom:18px}
+  .crumbs b{color:var(--ink)}
+  h1{font-size:26px; margin:0 0 6px; letter-spacing:.01em}
+  h2{font-size:19px; margin:0 0 14px}
+  .lead{color:var(--muted); margin:0 0 26px}
+  .grid{display:grid; gap:18px}
+  .grid.cards{grid-template-columns:repeat(auto-fit,minmax(240px,1fr))}
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); padding:22px; box-shadow:var(--shadow)}
+  .card.click{cursor:pointer; transition:transform .12s ease, box-shadow .12s ease}
+  .card.click:hover{transform:translateY(-2px); box-shadow:0 4px 8px rgba(30,32,40,.08),0 14px 34px rgba(30,32,40,.09)}
+  .card .ico{width:44px;height:44px;border-radius:12px;background:var(--brand-soft);color:var(--brand);display:grid;place-items:center;font-size:22px;margin-bottom:14px}
+  .card h3{margin:0 0 6px;font-size:17px}
+  .card p{margin:0;color:var(--muted);font-size:14px}
+  .btn{
+    display:inline-flex;align-items:center;gap:8px;justify-content:center;
+    background:var(--brand);color:#fff;border:none;border-radius:10px;
+    padding:11px 18px;font-size:15px;font-weight:600;cursor:pointer;font-family:inherit;transition:background .12s
+  }
+  .btn:hover{background:var(--brand-ink)}
+  .btn:disabled{opacity:.5;cursor:not-allowed}
+  .btn.ghost{background:transparent;color:var(--brand-ink);border:1px solid var(--line)}
+  .btn.ghost:hover{background:var(--brand-soft)}
+  .btn.accent{background:var(--accent)} .btn.accent:hover{filter:brightness(.94)}
+  .btn.sm{padding:7px 12px;font-size:13px}
+  .btn.danger{background:transparent;color:var(--danger);border:1px solid #FECACA}
+  .btn.danger:hover{background:#FEF2F2}
+  .row{display:flex;gap:12px;flex-wrap:wrap;align-items:center}
+  .row.end{justify-content:flex-end}
+  .field{margin-bottom:18px}
+  label.lbl{display:block;font-weight:600;font-size:14px;margin-bottom:6px}
+  .hint{color:var(--muted);font-size:13px;margin-top:4px}
+  input[type=text],textarea,select{
+    width:100%;background:#fff;border:1px solid var(--line);border-radius:10px;
+    padding:10px 12px;font-size:15px;font-family:inherit;color:var(--ink)
+  }
+  input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+  textarea{resize:vertical;min-height:120px}
+  .dropzone{
+    border:2px dashed var(--line);border-radius:var(--radius);padding:34px;text-align:center;
+    background:#F9FAFB;cursor:pointer;transition:.12s;color:var(--muted)
+  }
+  .dropzone:hover,.dropzone.drag{border-color:var(--brand);background:var(--brand-soft);color:var(--brand-ink)}
+  .dropzone .big{font-size:34px;margin-bottom:6px}
+  .split{display:grid;grid-template-columns:1.4fr 1fr;gap:20px;align-items:start}
+  @media(max-width:820px){.split{grid-template-columns:1fr}}
+  .preview-pane{background:var(--surface);border:1px solid var(--line);border-radius:var(--radius);box-shadow:var(--shadow);overflow:hidden}
+  .pane-head{padding:12px 16px;border-bottom:1px solid var(--line);display:flex;align-items:center;gap:10px;background:#F9FAFB}
+  .pane-head .t{font-weight:600;font-size:14px}
+  .docx-preview{padding:22px 26px;max-height:520px;overflow:auto;font-size:14.5px}
+  .docx-preview p{margin:0 0 10px}
+  .docx-preview table{border-collapse:collapse;margin:8px 0}
+  .docx-preview td,.docx-preview th{border:1px solid var(--line);padding:4px 8px}
+  .mask{background:var(--mask);border-bottom:2px solid var(--mask-line);border-radius:3px;padding:0 2px;cursor:pointer}
+  .mask:hover{filter:brightness(.96);text-decoration:line-through}
+  /* マスクモード切替（鉛筆／消しゴム） */
+  .mask-toggle{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:#fff}
+  .mask-toggle button{border:none;background:#fff;padding:6px 12px;font-size:13px;font-family:inherit;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;gap:5px}
+  .mask-toggle button+button{border-left:1px solid var(--line)}
+  .mask-toggle button.on{background:var(--brand);color:#fff}
+  .mask-toggle button.on.erase{background:var(--accent)}
+  /* 鉛筆モード：プレビュー上で選択しやすいカーソル */
+  .docx-preview.mode-add{cursor:text}
+  .docx-preview.mode-erase .mask{cursor:pointer;outline:1px dashed var(--danger);outline-offset:1px}
+  .docx-preview.mode-erase .mask:hover{background:#fbeae8;border-bottom-color:var(--danger)}
+  .xlsx-preview{padding:14px;max-height:520px;overflow:auto}
+  .xlsx-preview .sheetname{font-size:12px;font-weight:700;color:var(--muted);margin:10px 4px 4px;text-transform:uppercase;letter-spacing:.04em}
+  .xlsx-preview table{border-collapse:collapse;font-size:13px}
+  .xlsx-preview td{border:1px solid var(--line);padding:3px 8px;min-width:46px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+  .xlsx-preview td:empty{min-height:20px}
+  .xlsx-preview td.picked{background:var(--mask);outline:2px solid var(--mask-line);outline-offset:-2px}
+  .xlsx-preview td:hover{background:var(--brand-soft)}
+  .var-list{display:flex;flex-direction:column;gap:10px;max-height:520px;overflow:auto;padding-right:4px}
+  .var-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff}
+  .var-item .orig{font-size:12px;color:var(--muted);margin-bottom:8px;word-break:break-all}
+  .var-item .orig b{background:var(--mask);color:var(--ink);padding:0 3px;border-radius:3px}
+  .var-item .prop-row{display:flex;gap:8px;align-items:center}
+  .var-item input{flex:1}
+  .icon-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:16px;padding:6px;border-radius:8px}
+  .icon-btn:hover{background:#F3F4F6;color:var(--danger)}
+  .empty{color:var(--muted);text-align:center;padding:30px 10px;font-size:14px}
+  .tpl-item{display:flex;align-items:center;gap:14px;padding:16px;border:1px solid var(--line);border-radius:12px;background:#fff;box-shadow:var(--shadow);cursor:pointer;transition:.12s}
+  .tpl-item:hover{border-color:var(--brand);transform:translateY(-1px)}
+  .tpl-item.sel{border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
+  .tpl-ico{width:42px;height:42px;border-radius:10px;display:grid;place-items:center;font-size:12px;font-weight:800;color:#fff}
+  .tpl-ico.docx{background:#2b579a}.tpl-ico.xlsx{background:#217346}
+  .tpl-meta{flex:1}.tpl-meta .nm{font-weight:600}.tpl-meta .sub{font-size:13px;color:var(--muted)}
+  .pill{font-size:12px;padding:3px 10px;border-radius:999px;background:var(--brand-soft);color:var(--brand-ink);font-weight:600}
+  .tabs{display:flex;gap:6px;background:#F3F4F6;padding:5px;border-radius:12px;width:max-content;margin-bottom:22px}
+  .tabs button{border:none;background:none;padding:9px 18px;border-radius:9px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:var(--muted)}
+  .tabs button.on{background:#fff;color:var(--brand-ink);box-shadow:var(--shadow)}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:16px}
+  .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;box-shadow:var(--shadow);z-index:200;opacity:0;transition:.25s;pointer-events:none}
+  .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
+  .toast.err{background:var(--danger)}
+  .backdrop{position:fixed;inset:0;background:rgba(20,22,28,.45);display:none;place-items:center;z-index:150;padding:20px}
+  .backdrop.show{display:grid}
+  .modal{background:var(--surface);border-radius:16px;max-width:640px;width:100%;max-height:88vh;overflow:auto;box-shadow:0 20px 60px rgba(0,0,0,.3)}
+  .modal-head{padding:20px 24px 6px}.modal-head h2{margin:0}
+  .modal-body{padding:8px 24px}
+  .modal-foot{padding:16px 24px 22px;display:flex;gap:10px;justify-content:flex-end;position:sticky;bottom:0;background:linear-gradient(transparent,var(--surface) 30%)}
+  .confirm-row{display:grid;grid-template-columns:140px 1fr;gap:10px;align-items:center;padding:9px 0;border-bottom:1px solid var(--line)}
+  .confirm-row .k{font-size:13px;color:var(--muted);font-weight:600}
+  .spinner{width:16px;height:16px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;animation:spin .7s linear infinite}
+  @keyframes spin{to{transform:rotate(360deg)}}
+  .loading-overlay{position:fixed;inset:0;background:rgba(245,244,240,.7);backdrop-filter:blur(2px);display:none;place-items:center;z-index:180}
+  .loading-overlay.show{display:grid}
+  .loading-box{background:#fff;padding:24px 30px;border-radius:14px;box-shadow:var(--shadow);display:flex;align-items:center;gap:14px;font-weight:600}
+  .loading-box .spinner{border-color:var(--brand-soft);border-top-color:var(--brand)}
+  .warnbox{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
+</style>
+</head>
+<body>
+<header class="top">
+  <div class="top-inner">
+    <div class="logo" onclick="go('home')"><span class="badge">契</span><span>契約書自動作成</span></div>
+    <div class="top-spacer"></div>
+    <button class="link-btn" onclick="go('templates')">フォーマット一覧</button>
+    <button class="link-btn" onclick="go('settings')">⚙ 設定</button>
+  </div>
+</header>
+
+<main class="wrap" id="app"></main>
+
+<div class="loading-overlay" id="loading"><div class="loading-box"><span class="spinner"></span><span id="loadingText">AIが処理しています…</span></div></div>
+<div class="backdrop" id="backdrop"></div>
+<div class="toast" id="toast"></div>
+
+<script>
+/* ============================================================
+   GAS Web App URL（バックグラウンドに固定）
+   ※デプロイ時はここに /exec のURLを設定してください。
+     UI上には表示されず、利用者からは見えません。
+============================================================ */
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbzdmGSK0E6UXAfDoYL-z0kdaTlb5q4uQQQzJqIeL4FN981u08GQXzSFA0xkEN7frQ7mbw/exec';
+
+/* ============================================================
+   ストレージ層（localStorageを試し、使えなければメモリ保持）
+   ※自分のサーバー/GASにホストすれば永続化されます
+============================================================ */
+const Store = (() => {
+  let mem = {};
+  let ok = false;
+  try { localStorage.setItem('__t','1'); localStorage.removeItem('__t'); ok = true; } catch(e){ ok = false; }
+  return {
+    get(k){ try { return ok ? JSON.parse(localStorage.getItem(k) || 'null') : (mem[k] ?? null); } catch(e){ return mem[k] ?? null; } },
+    set(k,v){ try { if(ok) localStorage.setItem(k, JSON.stringify(v)); else mem[k]=v; } catch(e){ mem[k]=v; } },
+    persistent: ok
+  };
+})();
+
+/* ============================================================
+   アプリ状態
+============================================================ */
+const state = {
+  view: 'home',
+  templates: Store.get('templates') || [],
+  // フォーマット作成中の一時データ
+  draft: null,
+  // 契約書作成中の一時データ
+  make: null,
+  // 画面遷移の直前ビューを保持（設定画面から戻る用）
+  prevView: 'home'
+};
+function saveTemplates(){ Store.set('templates', state.templates); }
+function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
+
+/* ============================================================
+   ユーティリティ
+============================================================ */
+function toast(msg, isErr){ const t=document.getElementById('toast'); t.textContent=msg; t.className='toast show'+(isErr?' err':''); setTimeout(()=>t.className='toast',2600); }
+function loading(on, text){ const l=document.getElementById('loading'); document.getElementById('loadingText').textContent=text||'AIが処理しています…'; l.classList.toggle('show',!!on); }
+function esc(s){ return String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+function fileToBase64(file){ return new Promise((res,rej)=>{const r=new FileReader();r.onload=()=>res(r.result.split(',')[1]);r.onerror=rej;r.readAsDataURL(file);}); }
+function abToBase64(ab){ let bin='';const b=new Uint8Array(ab),ck=0x8000; for(let i=0;i<b.length;i+=ck) bin+=String.fromCharCode.apply(null,b.subarray(i,i+ck)); return btoa(bin); }
+function base64ToAb(b64){ const bin=atob(b64),len=bin.length,bytes=new Uint8Array(len); for(let i=0;i<len;i++) bytes[i]=bin.charCodeAt(i); return bytes.buffer; }
+function download(blob, filename){ const a=document.createElement('a'); a.href=URL.createObjectURL(blob); a.download=filename; document.body.appendChild(a); a.click(); a.remove(); setTimeout(()=>URL.revokeObjectURL(a.href),4000); }
+
+/* ============================================================
+   AI呼び出し（すべてGAS Web App経由でGeminiを実行）
+============================================================ */
+function gasReady(){ return GAS_URL && !/PUT_YOUR_DEPLOY_ID_HERE/.test(GAS_URL); }
+async function callAI(action, payload){
+  if(!gasReady()){ throw new Error('AI接続先が未設定です。管理者にお問い合わせください。'); }
+  const res = await fetch(GAS_URL, {
+    method:'POST',
+    // text/plain にすることでCORSプリフライトを回避（GAS Web Appの定石）
+    headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+    body: JSON.stringify({ action, payload })
+  });
+  const data = await res.json();
+  if(data.error) throw new Error('AIエラー: '+data.error);
+  return data;
+}
+
+/* ============================================================
+   ルーター
+============================================================ */
+function go(view, arg){
+  // 設定画面へ入る直前のビューを覚えておく（設定画面自身は記録しない）
+  if(view==='settings' && state.view!=='settings'){ state.prevView=state.view; }
+  state.view=view; render(view, arg); window.scrollTo(0,0);
+}
+function render(view, arg){
+  const app=document.getElementById('app');
+  app.innerHTML='';
+  ({ home:viewHome, settings:viewSettings, templates:viewTemplates,
+     templateNew:viewTemplateNew, makeSelect:viewMakeSelect, makeForm:viewMakeForm }[view]||viewHome)(app, arg);
+}
+
+/* ============================================================
+   画面：ホーム
+============================================================ */
+function viewHome(app){
+  app.innerHTML = `
+    <h1>契約書自動作成</h1>
+    <p class="lead">フォーマットを登録し、フォーム入力またはAI解析で契約書をワンクリック生成します。</p>
+    ${gasReady() ? '' : '<div class="warnbox">⚠ AI接続先が未設定です。手動入力機能はそのままご利用いただけます。</div>'}
+    <div class="grid cards">
+      <div class="card click" onclick="startTemplateNew()">
+        <div class="ico">＋</div><h3>フォーマットを保存する</h3>
+        <p>Word / Excel をアップロードし、可変部分をマスクしてフォーマットとして登録します。</p>
+      </div>
+      <div class="card click" onclick="go('makeSelect')">
+        <div class="ico">✎</div><h3>契約書を作成する</h3>
+        <p>登録済みのフォーマットを選び、手動入力またはAI自動入力で内容を埋めて出力します。</p>
+      </div>
+      <div class="card click" onclick="go('templates')">
+        <div class="ico">📁</div><h3>フォーマットを管理する</h3>
+        <p>登録済みのフォーマット（${state.templates.length}件）を確認・削除します。</p>
+      </div>
+    </div>
+    ${Store.persistent ? '' : '<p class="hint" style="margin-top:22px">※このプレビュー環境ではブラウザ保存が使えないため、リロードでフォーマットが消えます。ご自身のサーバーやGASに設置すると保存されます。</p>'}
+  `;
+}
+
+/* ============================================================
+   画面：設定
+============================================================ */
+function viewSettings(app){
+  const backLabel={ home:'ホーム', templates:'フォーマット一覧', templateNew:'フォーマット保存',
+    makeSelect:'契約書作成', makeForm:'入力フォーム' }[state.prevView] || '前の画面';
+  app.innerHTML = `
+    <div class="crumbs"><b>設定</b></div>
+    <div class="row" style="justify-content:space-between">
+      <h1 style="margin:0">設定</h1>
+      <button class="btn ghost sm" onclick="backFromSettings()">← ${esc(backLabel)}に戻る</button>
+    </div>
+    <p class="lead">AIはすべて管理者が設定したGAS Web App経由でGeminiを呼び出します。</p>
+    <div class="card" style="max-width:640px">
+      <div class="field" style="margin-bottom:0">
+        <label class="lbl">AI接続状態</label>
+        <div class="row" style="gap:8px">
+          <span class="pill" style="${gasReady()
+            ? 'background:var(--brand-soft);color:var(--brand-ink)'
+            : 'background:var(--accent-soft);color:#8a4a29'}">
+            ${gasReady() ? '● 接続先設定済み' : '● 未設定'}
+          </span>
+          ${gasReady() ? '<button class="btn ghost sm" onclick="testGas()">接続テスト</button>' : ''}
+        </div>
+        <div class="hint" style="margin-top:10px">
+          接続先URLはアプリ内に固定されており、画面には表示されません。変更が必要な場合は管理者にご連絡ください。
+        </div>
+      </div>
+    </div>
+    <div class="card" style="max-width:640px;margin-top:16px">
+      <div class="field" style="margin-bottom:0">
+        <label class="lbl">データ保存</label>
+        <div class="hint" style="margin-top:0">
+          ${Store.persistent
+            ? '登録したフォーマットはこのブラウザに保存されます。'
+            : 'この環境ではブラウザ保存が使えないため、リロードでフォーマットが消えます。'}
+        </div>
+      </div>
+    </div>
+  `;
+}
+function backFromSettings(){ go(state.prevView||'home'); }
+async function testGas(){
+  if(!gasReady()){ toast('接続先が未設定です', true); return; }
+  try{ loading(true,'接続確認中…'); const r=await fetch(GAS_URL); await r.text(); loading(false); toast('接続OK'); }
+  catch(e){ loading(false); toast('接続に失敗しました', true); }
+}
+
+/* ============================================================
+   画面：フォーマット一覧
+============================================================ */
+function viewTemplates(app){
+  app.innerHTML = `
+    <div class="crumbs"><b>フォーマット一覧</b></div>
+    <div class="row" style="justify-content:space-between;margin-bottom:18px">
+      <h1 style="margin:0">フォーマット一覧</h1>
+      <button class="btn" onclick="startTemplateNew()">＋ 新規フォーマット</button>
+    </div>
+    <div class="grid" id="tplList"></div>`;
+  const list=document.getElementById('tplList');
+  if(!state.templates.length){ list.innerHTML='<div class="empty">まだフォーマットがありません。</div>'; return; }
+  state.templates.forEach(t=>{
+    const d=document.createElement('div'); d.className='tpl-item';
+    d.innerHTML=`
+      <div class="tpl-ico ${t.fileType}">${t.fileType.toUpperCase()}</div>
+      <div class="tpl-meta"><div class="nm">${esc(t.name)}</div>
+        <div class="sub">${t.variables.length}個の変数 ・ ${t.fileType==='docx'?'Word':'Excel'}</div></div>
+      <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
+      <button class="btn ghost sm editBtn" title="編集">✎ 編集</button>
+      <button class="icon-btn delBtn" title="削除">🗑</button>`;
+    d.querySelector('.tpl-meta').onclick=()=>{ state.make={template:t}; go('makeSelect'); };
+    d.querySelector('.editBtn').onclick=(e)=>{ e.stopPropagation(); startTemplateEdit(t.id); };
+    d.querySelector('.delBtn').onclick=(e)=>{ e.stopPropagation(); if(confirm(`「${t.name}」を削除しますか？`)){ state.templates=state.templates.filter(x=>x.id!==t.id); saveTemplates(); viewTemplates(app);} };
+    list.appendChild(d);
+  });
+}
+
+/* ============================================================
+   フォーマット保存フロー
+============================================================ */
+function startTemplateNew(){ state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], maskMode:'add', editId:null }; go('templateNew'); }
+
+/* 既存フォーマットを編集用に読み込む（同じファイル・マスクを引き継いで再調整） */
+async function startTemplateEdit(id){
+  const t=state.templates.find(x=>x.id===id);
+  if(!t){ toast('フォーマットが見つかりません', true); return; }
+  const d={ name:t.name, fileType:t.fileType, fileBase64:t.fileBase64, previewHtml:'', workbook:null,
+    variables:t.variables.map(v=>({ key:uid(), propName:v.propName, originalText:v.originalText,
+      occurrence:(v.occurrence!=null?v.occurrence:0), sheet:v.sheet||undefined, addr:v.addr||undefined })),
+    maskMode:'add', editId:t.id };
+  state.draft=d;
+  try{
+    loading(true,'フォーマットを読み込み中…');
+    const ab=base64ToAb(t.fileBase64);
+    if(t.fileType==='docx'){
+      const result=await mammoth.convertToHtml({arrayBuffer:ab});
+      d.previewHtml=result.value;
+    }else{
+      d.workbook=XLSX.read(ab,{type:'array'});
+    }
+    loading(false);
+    go('templateNew');
+  }catch(e){ loading(false); toast('読み込みに失敗しました: '+e.message, true); }
+}
+
+function viewTemplateNew(app){
+  const d=state.draft;
+  const editing=!!d.editId;
+  app.innerHTML = `
+    <div class="crumbs">フォーマット${editing?'編集':'保存'} / <b>${editing?esc(d.name||'編集'):'新規作成'}</b></div>
+    <h1>フォーマットを${editing?'編集':'保存'}</h1>
+    <p class="lead">${editing
+      ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'
+      : '① ファイルをアップロード → ② フォーマット名を入力 → ③ 可変部分をマスク → ④ AIが項目名を提案 → ⑤ 調整して保存'}</p>
+
+    <div class="field" style="max-width:520px">
+      <label class="lbl">${editing?'':'① '}フォーマット名（契約書の種類）</label>
+      <input type="text" id="tplName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
+    </div>
+
+    <div id="uploadArea" ${editing?'style="display:none"':''}>
+      <label class="lbl">② フォーマットファイル（Word .docx / Excel .xlsx）</label>
+      <div class="dropzone" id="drop">
+        <div class="big">⬆</div>
+        <div><b>クリック</b>またはドラッグ＆ドロップでアップロード</div>
+        <div class="hint">.docx / .xlsx に対応</div>
+      </div>
+      <input type="file" id="fileInput" accept=".docx,.xlsx" style="display:none">
+    </div>
+
+    ${editing?`<div class="row" style="max-width:520px;margin:-6px 0 4px">
+      <button class="btn ghost sm" id="replaceFileBtn">⬆ ファイルを差し替える</button>
+      <span class="hint" style="margin:0">別のWord/Excelに変更するとマスクはリセットされます</span>
+      <input type="file" id="replaceFileInput" accept=".docx,.xlsx" style="display:none">
+    </div>`:''}
+
+    <div id="maskArea" style="display:none;margin-top:24px"></div>
+  `;
+  document.getElementById('tplName').oninput=e=>d.name=e.target.value;
+  const fireFile=f=>{ if(f) handleTemplateFile(f); };
+
+  // 新規アップロード用ドロップゾーン
+  const drop=document.getElementById('drop');
+  const fi=document.getElementById('fileInput');
+  if(drop && fi){
+    fi.onchange=e=>fireFile(e.target.files[0]);
+    drop.onclick=()=>fi.click();
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add('drag');};
+    drop.ondragleave=()=>drop.classList.remove('drag');
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag'); fireFile(e.dataTransfer.files[0]);};
+  }
+  // 編集時：ファイル差し替え
+  const replaceBtn=document.getElementById('replaceFileBtn');
+  const rin=document.getElementById('replaceFileInput');
+  if(replaceBtn && rin){
+    rin.onchange=e=>fireFile(e.target.files[0]);
+    replaceBtn.onclick=()=>rin.click();
+  }
+
+  if(d.fileBase64){ const ua=document.getElementById('uploadArea'); if(ua) ua.style.display='none'; buildMaskArea(); }
+}
+
+async function handleTemplateFile(file){
+  const d=state.draft;
+  const ext=(file.name.split('.').pop()||'').toLowerCase();
+  if(ext!=='docx' && ext!=='xlsx'){ toast('.docx か .xlsx を選んでください', true); return; }
+  if(!d.name){ d.name=file.name.replace(/\.[^.]+$/,''); }
+  loading(true,'ファイルを読み込み中…');
+  try{
+    const ab=await file.arrayBuffer();
+    d.fileType=ext;
+    d.fileBase64=abToBase64(ab);
+    d.variables=[];
+    d.maskMode=d.maskMode||'add';
+    if(ext==='docx'){
+      const result=await mammoth.convertToHtml({arrayBuffer:ab});
+      d.previewHtml=result.value;
+    }else{
+      d.workbook=XLSX.read(ab,{type:'array'});
+    }
+    loading(false);
+    render('templateNew');
+  }catch(e){ loading(false); toast('読み込みに失敗しました: '+e.message,true); }
+}
+
+function buildMaskArea(){
+  const d=state.draft;
+  const area=document.getElementById('maskArea');
+  area.style.display='block';
+  area.innerHTML = `
+    <h2>③〜⑤ 可変部分をマスクして項目名を決める</h2>
+    <div class="split">
+      <div class="preview-pane">
+        <div class="pane-head">
+          <span class="t">${d.fileType==='docx'?'文書プレビュー':'シートプレビュー'}</span>
+          <div class="top-spacer" style="flex:1"></div>
+          <div class="mask-toggle" id="maskToggle">
+            <button data-mode="add" class="${d.maskMode==='erase'?'':'on'}">✏️ 追加</button>
+            <button data-mode="erase" class="erase ${d.maskMode==='erase'?'on':''}">🩹 除去</button>
+          </div>
+        </div>
+        <div class="pane-head" style="border-top:none;padding-top:0">
+          <span class="hint" style="margin:0" id="maskHelp"></span>
+        </div>
+        <div id="previewBody" class="${d.fileType==='docx'?'docx-preview':'xlsx-preview'}"></div>
+      </div>
+      <div>
+        <div class="pane-head" style="border:1px solid var(--line);border-radius:12px 12px 0 0;background:#F9FAFB">
+          <span class="t">変数リスト（<span id="varCount">0</span>）</span>
+          <div style="flex:1"></div>
+          <button class="btn sm accent" id="aiNameBtn">🤖 AIで項目名生成</button>
+        </div>
+        <div style="border:1px solid var(--line);border-top:none;border-radius:0 0 12px 12px;padding:12px;background:#F9FAFB">
+          <div class="var-list" id="varList"></div>
+        </div>
+        <div class="row end" style="margin-top:18px">
+          ${d.editId
+            ? '<button class="btn ghost" onclick="go(\'templates\')">キャンセル</button>'
+            : '<button class="btn ghost" onclick="startTemplateNew()">やり直す</button>'}
+          <button class="btn" id="saveTplBtn">${d.editId?'上書き保存する':'このフォーマットを保存'}</button>
+        </div>
+      </div>
+    </div>`;
+
+  const body=document.getElementById('previewBody');
+
+  // モード切替トグル
+  const toggle=document.getElementById('maskToggle');
+  if(toggle){
+    toggle.querySelectorAll('button').forEach(btn=>{
+      btn.onclick=()=>{ setMaskMode(btn.dataset.mode); };
+    });
+  }
+
+  if(d.fileType==='docx'){
+    renderDocxPreview(body);
+    // 鉛筆モード：選択が終わった瞬間（マウスアップ）に自動でマスク
+    body.addEventListener('mouseup',()=>{
+      if(state.draft.maskMode!=='add') return;
+      // 選択解除直後の誤発火を避けるため少し遅延
+      setTimeout(()=>{ tryAddDocxMaskFromSelection(); },0);
+    });
+    // 消しゴムモード：マスクをクリックで除去
+    body.addEventListener('click',e=>{
+      const m=e.target.closest('.mask'); if(!m) return;
+      if(state.draft.maskMode==='erase') removeVar(m.dataset.key);
+    });
+  }else{
+    renderXlsxPreview(body);
+  }
+  applyMaskModeUI();
+  document.getElementById('aiNameBtn').onclick=aiGenerateNames;
+  document.getElementById('saveTplBtn').onclick=saveTemplate;
+  refreshVarList();
+}
+
+/* ---- マスクモード（鉛筆＝追加 / 消しゴム＝除去）---- */
+function setMaskMode(mode){
+  state.draft.maskMode = (mode==='erase') ? 'erase' : 'add';
+  applyMaskModeUI();
+}
+function applyMaskModeUI(){
+  const d=state.draft;
+  const toggle=document.getElementById('maskToggle');
+  if(toggle){
+    toggle.querySelectorAll('button').forEach(btn=>{
+      btn.classList.toggle('on', btn.dataset.mode===d.maskMode);
+    });
+  }
+  const body=document.getElementById('previewBody');
+  if(body && d.fileType==='docx'){
+    body.classList.toggle('mode-add', d.maskMode==='add');
+    body.classList.toggle('mode-erase', d.maskMode==='erase');
+  }
+  const help=document.getElementById('maskHelp');
+  if(help){
+    if(d.fileType==='docx'){
+      help.textContent = d.maskMode==='erase'
+        ? '🩹 除去モード：黄色いマスクをクリックすると解除します'
+        : '✏️ 追加モード：置き換えたい文字をドラッグで選択するだけでマスクされます';
+    }else{
+      help.textContent = d.maskMode==='erase'
+        ? '🩹 除去モード：マスク済み（黄色）のセルをクリックで解除します'
+        : '✏️ 追加モード：可変にしたいセルをクリックするとマスクされます';
+    }
+  }
+}
+
+/* ---- docx マスク ---- */
+// マスクした「その出現位置」だけをハイライトする（同一文言の他の箇所は色付けしない）
+function renderDocxPreview(body){
+  const d=state.draft;
+  body.innerHTML=d.previewHtml;
+  // テキストノードを文書順に集め、各ノードの開始オフセットを記録
+  const walker=document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  const nodes=[]; let n; while((n=walker.nextNode())) nodes.push(n);
+  const starts=[]; let acc=0;
+  nodes.forEach(nd=>{ starts.push(acc); acc+=nd.nodeValue.length; });
+  const full=nodes.map(nd=>nd.nodeValue).join('');
+  // 各変数について、対象の出現位置[start,end)を求め、ノードごとに切り出して包む
+  const pieceMap=new Map();
+  d.variables.forEach(v=>{
+    const positions=allIndexOf(full, v.originalText);
+    const occ=(v.occurrence!=null?v.occurrence:0);
+    const start=positions[occ];
+    if(start==null) return; // 見つからなければ色付けしない
+    const end=start+v.originalText.length;
+    for(let i=0;i<nodes.length;i++){
+      const ns=starts[i], ne=ns+nodes[i].nodeValue.length;
+      const s=Math.max(start,ns), e=Math.min(end,ne);
+      if(s<e){
+        if(!pieceMap.has(nodes[i])) pieceMap.set(nodes[i],[]);
+        pieceMap.get(nodes[i]).push({s:s-ns,e:e-ns,key:v.key});
+      }
+    }
+  });
+  pieceMap.forEach((pieces,node)=>wrapNodePieces(node,pieces));
+}
+// 1つのテキストノード内の複数区間をまとめて <span class="mask"> で包む
+function wrapNodePieces(node, pieces){
+  pieces.sort((a,b)=>a.s-b.s);
+  const text=node.nodeValue;
+  const frag=document.createDocumentFragment();
+  let cur=0;
+  pieces.forEach(p=>{
+    if(p.s<cur) return;            // 区間が重なる場合はスキップ
+    if(p.s>cur) frag.appendChild(document.createTextNode(text.slice(cur,p.s)));
+    const span=document.createElement('span'); span.className='mask'; span.dataset.key=p.key;
+    span.textContent=text.slice(p.s,p.e); frag.appendChild(span);
+    cur=p.e;
+  });
+  if(cur<text.length) frag.appendChild(document.createTextNode(text.slice(cur)));
+  node.parentNode.replaceChild(frag,node);
+}
+// 鉛筆モードで選択終了時に呼ばれる。選択が無ければ静かに何もしない。
+function tryAddDocxMaskFromSelection(){
+  const body=document.getElementById('previewBody');
+  if(!body) return;
+  const sel=window.getSelection();
+  if(!sel || !sel.rangeCount) return;
+  const raw=sel.toString();
+  if(!raw || !raw.trim()) return;                    // 選択なし → 無視
+  const range=sel.getRangeAt(0);
+  if(!body.contains(range.startContainer)) return;   // プレビュー外 → 無視
+  // 既存マスクの内側だけを選択した場合は追加しない（除去はクリックで行う）
+  const text=raw.trim();
+  const full=previewFullText(body);
+  const selStart=globalStartOffset(body, range);
+  let matchStart = selStart>=0 ? full.indexOf(text, Math.max(0, selStart)) : -1;
+  if(matchStart<0) matchStart = full.indexOf(text);
+  if(matchStart<0){ sel.removeAllRanges(); return; }
+  const occurrence=countOcc(full, text, matchStart);
+  if(state.draft.variables.some(v=>v.originalText===text && v.occurrence===occurrence)){
+    sel.removeAllRanges();
+    toast('その箇所はすでにマスク済みです', true);
+    return;
+  }
+  state.draft.variables.push({ key:uid(), originalText:text, occurrence, propName:'' });
+  sel.removeAllRanges();
+  renderDocxPreview(body);
+  applyMaskModeUI();
+  refreshVarList();
+}
+// プレビュー内の全テキストを文書順に連結
+function previewFullText(root){
+  const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let s='', n; while((n=walker.nextNode())) s+=n.nodeValue; return s;
+}
+// 選択開始位置をプレビュー全体の文字オフセットに変換
+function globalStartOffset(root, range){
+  const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let offset=0, node;
+  while((node=walker.nextNode())){
+    if(node===range.startContainer) return offset + range.startOffset;
+    offset += node.nodeValue.length;
+  }
+  return -1;
+}
+// endPosより前にneedleが何回出現するか（＝0始まりの出現番号）
+function countOcc(hay, needle, endPos){
+  let c=0, i=0;
+  while((i=hay.indexOf(needle,i))>=0 && i<endPos){ c++; i+=needle.length; }
+  return c;
+}
+function allIndexOf(hay, needle){ const r=[]; if(!needle) return r; let i=0; while((i=hay.indexOf(needle,i))>=0){ r.push(i); i+=needle.length; } return r; }
+
+/* ---- xlsx マスク ---- */
+function renderXlsxPreview(body){
+  const d=state.draft;
+  body.innerHTML='';
+  d.workbook.SheetNames.forEach(sn=>{
+    const ws=d.workbook.Sheets[sn]; if(!ws['!ref']) return;
+    const range=XLSX.utils.decode_range(ws['!ref']);
+    const maxR=Math.min(range.e.r, range.s.r+199);
+    const label=document.createElement('div'); label.className='sheetname'; label.textContent=sn; body.appendChild(label);
+    const tbl=document.createElement('table');
+    for(let r=range.s.r;r<=maxR;r++){
+      const tr=document.createElement('tr');
+      for(let c=range.s.c;c<=range.e.c;c++){
+        const addr=XLSX.utils.encode_cell({r,c});
+        const cell=ws[addr];
+        const val=cell ? (cell.w!=null?cell.w:cell.v) : '';
+        const td=document.createElement('td');
+        td.textContent=val; td.title=val;
+        td.dataset.sheet=sn; td.dataset.addr=addr;
+        if(d.variables.some(v=>v.sheet===sn && v.addr===addr)) td.classList.add('picked');
+        if(val!=='' && val!=null){
+          td.onclick=()=>toggleCell(sn,addr,String(val),td);
+        }
+        tr.appendChild(td);
+      }
+      tbl.appendChild(tr);
+    }
+    body.appendChild(tbl);
+  });
+}
+function toggleCell(sheet,addr,val,td){
+  const d=state.draft;
+  const i=d.variables.findIndex(v=>v.sheet===sheet && v.addr===addr);
+  const mode=d.maskMode||'add';
+  if(mode==='erase'){
+    // 消しゴム：マスク済みのみ解除、未マスクは無視
+    if(i>=0){ d.variables.splice(i,1); td.classList.remove('picked'); refreshVarList(); }
+    return;
+  }
+  // 鉛筆（追加）：未マスクなら追加。既にマスク済みならそのまま。
+  if(i<0){ d.variables.push({ key:uid(), sheet, addr, originalText:val, propName:'' }); td.classList.add('picked'); refreshVarList(); }
+}
+
+/* ---- 変数リスト ---- */
+function removeVar(key){
+  const d=state.draft;
+  d.variables=d.variables.filter(v=>v.key!==key);
+  if(d.fileType==='docx') renderDocxPreview(document.getElementById('previewBody'));
+  else renderXlsxPreview(document.getElementById('previewBody'));
+  refreshVarList();
+}
+function refreshVarList(){
+  const d=state.draft;
+  document.getElementById('varCount').textContent=d.variables.length;
+  const list=document.getElementById('varList');
+  if(!d.variables.length){ list.innerHTML='<div class="empty">左側でマスクした部分がここに並びます。</div>'; return; }
+  // docxは同一文言の総出現数を数えて「何箇所目か」を表示するための全文
+  let fullForCount='';
+  if(d.fileType==='docx'){ const b=document.getElementById('previewBody'); if(b) fullForCount=previewFullText(b); }
+  list.innerHTML='';
+  d.variables.forEach(v=>{
+    const item=document.createElement('div'); item.className='var-item';
+    const loc=v.addr?` <span style="color:var(--brand)">[${v.sheet}!${v.addr}]</span>`:'';
+    let occBadge='';
+    if(d.fileType==='docx'){
+      const total=allIndexOf(fullForCount, v.originalText).length;
+      if(total>1) occBadge=` <span class="pill" style="background:var(--accent-soft);color:var(--brand-ink)">${(v.occurrence??0)+1}/${total}箇所目</span>`;
+    }
+    item.innerHTML=`
+      <div class="orig">元テキスト:${loc}${occBadge} <b>${esc(v.originalText.slice(0,60))}</b></div>
+      <div class="prop-row">
+        <input type="text" placeholder="項目名（例：甲の会社名）" value="${esc(v.propName)}">
+        <button class="icon-btn" title="削除">✕</button>
+      </div>`;
+    item.querySelector('input').oninput=e=>v.propName=e.target.value;
+    item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
+    list.appendChild(item);
+  });
+}
+
+/* ---- ④ AIで項目名生成 ---- */
+async function aiGenerateNames(){
+  const d=state.draft;
+  if(!d.variables.length){ toast('先にマスクしてください', true); return; }
+  try{
+    loading(true,'AIが項目名を考えています…');
+    const { names }=await callAI('generatePropNames',{ texts:d.variables.map(v=>v.originalText) });
+    d.variables.forEach((v,i)=>{ if(names[i]) v.propName=names[i]; });
+    loading(false); refreshVarList(); toast('項目名を生成しました');
+  }catch(e){ loading(false); toast(e.message, true); }
+}
+
+/* ---- ⑥ 保存 ---- */
+function saveTemplate(){
+  const d=state.draft;
+  if(!d.name.trim()){ toast('フォーマット名を入力してください', true); return; }
+  if(!d.variables.length){ toast('最低1つはマスクしてください', true); return; }
+  const empty=d.variables.filter(v=>!v.propName.trim());
+  if(empty.length){ toast('すべての項目名を入力してください', true); return; }
+  // propName重複チェック
+  const names=d.variables.map(v=>v.propName.trim());
+  if(new Set(names).size!==names.length){ toast('項目名が重複しています', true); return; }
+
+  const record={
+    id: d.editId || uid(),
+    name:d.name.trim(), fileType:d.fileType, fileBase64:d.fileBase64,
+    variables:d.variables.map(v=>({ propName:v.propName.trim(), originalText:v.originalText, occurrence:(v.occurrence??null), sheet:v.sheet||null, addr:v.addr||null }))
+  };
+  if(d.editId){
+    const idx=state.templates.findIndex(t=>t.id===d.editId);
+    if(idx>=0) state.templates[idx]=record; else state.templates.push(record);
+    saveTemplates();
+    toast('フォーマットを上書き保存しました');
+  }else{
+    state.templates.push(record);
+    saveTemplates();
+    toast('フォーマットを保存しました');
+  }
+  go('templates');
+}
+
+/* ============================================================
+   契約書作成：フォーマット選択＋モード選択
+============================================================ */
+function viewMakeSelect(app){
+  const preSel=state.make && state.make.template;
+  app.innerHTML = `
+    <div class="crumbs">契約書作成 / <b>フォーマットを選ぶ</b></div>
+    <h1>契約書を作成</h1>
+    <p class="lead">使用するフォーマットを選び、入力方法を選択してください。</p>
+    <h2 style="font-size:16px">① フォーマットを選択</h2>
+    <div class="grid" id="tplPick" style="margin-bottom:26px"></div>
+    <h2 style="font-size:16px">② 入力方法を選択</h2>
+    <div class="grid cards" id="modePick"></div>
+  `;
+  const pick=document.getElementById('tplPick');
+  if(!state.templates.length){ pick.innerHTML='<div class="empty">フォーマットがありません。先にフォーマットを保存してください。</div>'; }
+  let selected=preSel||null;
+  const renderModes=()=>{
+    const mp=document.getElementById('modePick');
+    if(!selected){ mp.innerHTML='<div class="empty">先にフォーマットを選んでください。</div>'; return; }
+    mp.innerHTML=`
+      <div class="card click" id="modeManual"><div class="ico">⌨</div><h3>手動入力</h3><p>各項目をフォームに直接入力して作成します。</p></div>
+      <div class="card click" id="modeAuto"><div class="ico">🤖</div><h3>AI自動入力</h3><p>メール・LINE・スクショから内容をAIが読み取って自動で埋めます。</p></div>`;
+    document.getElementById('modeManual').onclick=()=>{ state.make={ template:selected, mode:'manual', values:{} }; go('makeForm'); };
+    document.getElementById('modeAuto').onclick=()=>{ state.make={ template:selected, mode:'auto', values:{}, source:'', image:null }; go('makeForm'); };
+  };
+  state.templates.forEach(t=>{
+    const d=document.createElement('div'); d.className='tpl-item'+(selected&&selected.id===t.id?' sel':'');
+    d.innerHTML=`<div class="tpl-ico ${t.fileType}">${t.fileType.toUpperCase()}</div>
+      <div class="tpl-meta"><div class="nm">${esc(t.name)}</div><div class="sub">${t.variables.length}個の変数</div></div>
+      ${selected&&selected.id===t.id?'<span class="pill">選択中</span>':''}`;
+    d.onclick=()=>{ selected=t; [...pick.children].forEach(c=>c.classList.remove('sel')); d.classList.add('sel'); [...pick.children].forEach(c=>{const p=c.querySelector('.pill');if(p)p.remove();}); const p=document.createElement('span');p.className='pill';p.textContent='選択中';d.appendChild(p); renderModes(); };
+    pick.appendChild(d);
+  });
+  renderModes();
+}
+
+/* ============================================================
+   契約書作成：入力フォーム（手動＝空 / 自動＝AIで事前充填）
+============================================================ */
+function viewMakeForm(app){
+  const m=state.make;
+  const t=m.template;
+  app.innerHTML = `
+    <div class="crumbs">契約書作成 / ${esc(t.name)} / <b>${m.mode==='manual'?'手動入力':'AI自動入力'}</b></div>
+    <div class="row" style="justify-content:space-between">
+      <h1 style="margin:0">${esc(t.name)}</h1>
+      <button class="btn ghost sm" onclick="go('makeSelect')">← フォーマットを選び直す</button>
+    </div>
+    <div class="tabs" style="margin-top:18px">
+      <button class="${m.mode==='manual'?'on':''}" onclick="switchMode('manual')">⌨ 手動入力</button>
+      <button class="${m.mode==='auto'?'on':''}" onclick="switchMode('auto')">🤖 AI自動入力</button>
+    </div>
+    <div id="autoBox"></div>
+    <div id="formBox"></div>
+  `;
+  if(m.mode==='auto') renderAutoBox();
+  renderMakeFormFields();
+}
+function switchMode(mode){ state.make.mode=mode; if(mode==='auto'&&!state.make.source){state.make.source='';} go('makeForm'); }
+
+function renderAutoBox(){
+  const box=document.getElementById('autoBox');
+  const m=state.make;
+  box.innerHTML=`
+    <div class="card" style="margin-bottom:22px">
+      <h2 style="font-size:16px">情報ソースを貼り付け</h2>
+      <div class="field">
+        <label class="lbl">メール文面 / LINE・メッセージ本文</label>
+        <textarea id="srcText" placeholder="ここに契約内容が書かれた文章を貼り付けてください。">${esc(m.source||'')}</textarea>
+      </div>
+      <div class="field">
+        <label class="lbl">またはスクショ画像（任意）</label>
+        <div class="dropzone" id="imgDrop" style="padding:22px">
+          <div class="big" style="font-size:28px">🖼</div>
+          <div><b>クリック</b>またはドラッグ＆ドロップで画像を添付</div>
+          <div class="hint" id="imgName">${m.image?('選択中: '+esc(m.image.name)):'メッセージのスクリーンショットを添付できます。'}</div>
+        </div>
+        <input type="file" id="srcImg" accept="image/*" style="display:none">
+      </div>
+      <button class="btn accent" id="analyzeBtn">🤖 AIで解析してフォームに反映</button>
+    </div>`;
+  document.getElementById('srcText').oninput=e=>m.source=e.target.value;
+
+  const imgDrop=document.getElementById('imgDrop');
+  const srcImg=document.getElementById('srcImg');
+  const setImg=async f=>{
+    if(!f) return;
+    if(!/^image\//.test(f.type)){ toast('画像ファイルを選んでください', true); return; }
+    m.image={ name:f.name, mime:f.type, base64:await fileToBase64(f) };
+    document.getElementById('imgName').textContent='選択中: '+f.name;
+  };
+  imgDrop.onclick=()=>srcImg.click();
+  srcImg.onchange=e=>setImg(e.target.files[0]);
+  imgDrop.ondragover=e=>{e.preventDefault();imgDrop.classList.add('drag');};
+  imgDrop.ondragleave=()=>imgDrop.classList.remove('drag');
+  imgDrop.ondrop=e=>{e.preventDefault();imgDrop.classList.remove('drag'); setImg(e.dataTransfer.files[0]);};
+
+  document.getElementById('analyzeBtn').onclick=analyzeSource;
+}
+
+async function analyzeSource(){
+  const m=state.make;
+  if(!m.source.trim() && !m.image){ toast('文章か画像を入力してください', true); return; }
+  try{
+    loading(true,'AIがソースを解析しています…');
+    const payload={
+      variables:m.template.variables.map(v=>({ propName:v.propName, originalText:v.originalText })),
+      source:m.source||''
+    };
+    if(m.image){ payload.imageBase64=m.image.base64; payload.imageMime=m.image.mime; }
+    const { values }=await callAI('extractValues', payload);
+    m.values=Object.assign({}, m.values, values||{});
+    loading(false);
+    renderMakeFormFields();
+    toast('AIが読み取った内容を反映しました。ご確認・修正してください。');
+  }catch(e){ loading(false); toast(e.message, true); }
+}
+
+function renderMakeFormFields(){
+  const m=state.make, t=m.template;
+  const box=document.getElementById('formBox');
+  box.innerHTML=`
+    <div class="card">
+      <h2 style="font-size:16px">各項目を入力</h2>
+      <div class="form-grid" id="fields"></div>
+      <div class="row end" style="margin-top:22px">
+        <button class="btn" id="confirmBtn">内容を確認する →</button>
+      </div>
+    </div>`;
+  const fields=document.getElementById('fields');
+  t.variables.forEach(v=>{
+    const f=document.createElement('div'); f.className='field'; f.style.margin='0';
+    f.innerHTML=`<label class="lbl">${esc(v.propName)}</label>
+      <input type="text" value="${esc(m.values[v.propName]||'')}" placeholder="${esc(v.originalText.slice(0,30))}">`;
+    f.querySelector('input').oninput=e=>m.values[v.propName]=e.target.value;
+    fields.appendChild(f);
+  });
+  document.getElementById('confirmBtn').onclick=openConfirm;
+}
+
+/* ============================================================
+   内容確認ダイアログ → 出力
+============================================================ */
+function openConfirm(){
+  const m=state.make, t=m.template;
+  const bd=document.getElementById('backdrop');
+  const rows=t.variables.map(v=>`
+    <div class="confirm-row">
+      <div class="k">${esc(v.propName)}</div>
+      <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}">
+    </div>`).join('');
+  bd.innerHTML=`
+    <div class="modal">
+      <div class="modal-head"><h2>内容の確認</h2><p class="hint" style="margin:4px 0 0">このまま出力します。必要なら修正してください。</p></div>
+      <div class="modal-body">${rows}</div>
+      <div class="modal-foot">
+        <button class="btn ghost" id="cancelC">修正に戻る</button>
+        <button class="btn" id="doneC">✓ 完了してファイル出力</button>
+      </div>
+    </div>`;
+  bd.classList.add('show');
+  bd.querySelectorAll('input[data-prop]').forEach(inp=>{
+    inp.oninput=e=>{ m.values[e.target.dataset.prop]=e.target.value; };
+  });
+  document.getElementById('cancelC').onclick=()=>{ bd.classList.remove('show'); renderMakeFormFields(); };
+  document.getElementById('doneC').onclick=async()=>{ bd.classList.remove('show'); await generateOutput(); renderMakeFormFields(); };
+}
+
+async function generateOutput(){
+  const m=state.make, t=m.template;
+  try{
+    loading(true,'契約書ファイルを生成中…');
+    if(t.fileType==='docx') await generateDocx(t, m.values);
+    else await generateXlsx(t, m.values);
+    loading(false);
+    toast('契約書を出力しました');
+  }catch(e){ loading(false); toast('生成エラー: '+e.message, true); }
+}
+
+/* ---- docx 生成（XMLを直接置換して書式を保持 / 出現位置ごとに個別置換） ---- */
+async function generateDocx(t, values){
+  const zip=new PizZip(base64ToAb(t.fileBase64));
+  const xmlFile=zip.file('word/document.xml');
+  if(!xmlFile) throw new Error('document.xmlが見つかりません');
+  const doc=new DOMParser().parseFromString(xmlFile.asText(),'application/xml');
+  // 文書全体の w:t を文書順に集約（マスク時のプレビュー連結と同じ数え方に合わせる）
+  const runs=[...doc.getElementsByTagName('w:t')].map(node=>({node}));
+  const full=runs.map(r=>r.node.textContent).join('');
+  const missing=[], jobs=[];
+  t.variables.forEach(v=>{
+    const positions=allIndexOf(full, v.originalText);
+    const occ=(v.occurrence!=null?v.occurrence:0);   // 何番目の出現か
+    const start=positions[occ];
+    if(start==null){ missing.push(v.propName); return; }
+    jobs.push({ start, end:start+v.originalText.length, value:(values[v.propName]||'') });
+  });
+  // 右（後方）から順に置換 → 前方の位置がずれず、同一文言でも各出現を正しく差し替えられる
+  jobs.sort((a,b)=>b.start-a.start);
+  jobs.forEach(j=>replaceRangeInRuns(runs, j.start, j.end, j.value));
+  const out=new XMLSerializer().serializeToString(doc);
+  zip.file('word/document.xml', out);
+  const blob=zip.generate({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
+  download(blob, `${t.name}.docx`);
+  if(missing.length) toast('一部の項目が本文中に見つかりませんでした: '+missing.join(', '), true);
+}
+function setT(node, text){ node.textContent=text; node.setAttribute('xml:space','preserve'); }
+// 文書全体の連結テキストにおける絶対区間[start,end)を、複数runにまたがって置換
+function replaceRangeInRuns(runs, start, end, value){
+  const texts=runs.map(r=>r.node.textContent);
+  let pos=0, sR=-1, sO=0, eR=-1, eO=0;
+  for(let i=0;i<texts.length;i++){
+    const len=texts[i].length;
+    if(sR<0 && start<pos+len){ sR=i; sO=start-pos; }
+    if(end<=pos+len){ eR=i; eO=end-pos; break; }
+    pos+=len;
+  }
+  if(sR<0||eR<0) return false;
+  if(sR===eR){ setT(runs[sR].node, texts[sR].slice(0,sO)+value+texts[sR].slice(eO)); }
+  else{
+    setT(runs[sR].node, texts[sR].slice(0,sO)+value);
+    for(let i=sR+1;i<eR;i++) setT(runs[i].node,'');
+    setT(runs[eR].node, texts[eR].slice(eO));
+  }
+  return true;
+}
+
+/* ---- xlsx 生成（セル値を書き換えて書式を保持） ---- */
+async function generateXlsx(t, values){
+  const wb=XLSX.read(base64ToAb(t.fileBase64),{type:'array',cellStyles:true});
+  t.variables.forEach(v=>{
+    const ws=wb.Sheets[v.sheet]; if(!ws) return;
+    const val=values[v.propName]||'';
+    const cell=ws[v.addr]||{};
+    const num=Number(val);
+    if(val!=='' && !isNaN(num) && /^-?\d+(\.\d+)?$/.test(val.trim())){ cell.t='n'; cell.v=num; }
+    else { cell.t='s'; cell.v=val; }
+    delete cell.w; delete cell.f;
+    ws[v.addr]=cell;
+  });
+  const arr=XLSX.write(wb,{type:'array',bookType:'xlsx',cellStyles:true});
+  download(new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `${t.name}.xlsx`);
+}
+
+/* ============================================================
+   起動
+============================================================ */
+// 外部ライブラリの読み込み確認（CDN失敗時に原因を分かりやすく表示）
+(function checkLibs(){
+  const miss=[];
+  if(typeof mammoth==='undefined') miss.push('mammoth（Word読み込み）');
+  if(typeof XLSX==='undefined')    miss.push('SheetJS/XLSX（Excel処理）');
+  if(typeof PizZip==='undefined')  miss.push('PizZip（Word生成）');
+  if(miss.length){
+    setTimeout(()=>toast('ライブラリの読み込みに失敗: '+miss.join(' / ')+'（ネット接続やCDNのブロックをご確認ください）', true), 400);
+  }
+})();
+go('home');
+</script>
+</body>
+</html>
