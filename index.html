@@ -430,11 +430,11 @@ function viewTemplateNew(app){
     <p class="lead">${editing
       ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'}</p>
     <div class="field" style="max-width:520px">
-      <label class="lbl section-heading">${editing?'':'① '}フォーマット名</label>
+      <label class="lbl section-heading">${editing?'':フォーマット名</label>
       <input type="text" id="tplName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
     </div>
     <div id="uploadArea" ${editing?'style="display:none"':''}>
-      <label class="lbl">② フォーマットファイル（.docx / .xlsx）</label>
+      <label class="lbl">フォーマットファイル（.docx / .xlsx）</label>
       <div class="dropzone" id="drop">
         <div class="big">⬆</div>
         <div>クリックまたはドラッグ＆ドロップでアップロード</div>
