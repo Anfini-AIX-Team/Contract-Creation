@@ -174,6 +174,10 @@
   .warnbox{background:#FFFBEB;border:1px solid #FDE68A;color:#92400E;border-radius:10px;padding:10px 14px;font-size:13px;margin-bottom:16px}
   .thumb-preview{margin-top:12px;display:flex;justify-content:center}
   .thumb-preview img{max-height:110px;border-radius:6px;border:1px solid var(--line);box-shadow:0 2px 8px rgba(0,0,0,.06)}
+  /* マスクの項目名ツールチップ（ネイティブtitleは表示が遅いため自前実装） */
+  .mini-tooltip{position:fixed;z-index:9999;background:var(--ink);color:#fff;font-size:12px;font-weight:600;
+    padding:5px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow);
+    transform:translate(-50%,-100%);margin-top:-10px;display:none}
 </style>
 </head>
 <body>
@@ -742,11 +746,62 @@ function refreshVarList(){
         <input type="text" placeholder="項目名（例：甲の会社名）" value="${esc(v.propName)}">
         <button class="icon-btn" title="削除">✕</button>
       </div>`;
-    item.querySelector('input').oninput=e=>v.propName=e.target.value;
+    item.querySelector('input').oninput=e=>{ v.propName=e.target.value; refreshMaskTitles(); };
     item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
     list.appendChild(item);
   });
+  refreshMaskTitles();
 }
+// マスク済み部分にカーソルを合わせたときに項目名をツールチップで表示する（自前実装＝表示が速い）
+function refreshMaskTitles(){
+  const d=state.draft;
+  const body=document.getElementById('previewBody');
+  if(!body) return;
+  if(d.fileType==='docx'){
+    body.querySelectorAll('.mask').forEach(span=>{
+      const v=d.variables.find(x=>x.key===span.dataset.key);
+      span.removeAttribute('title');
+      span.dataset.tip = (v && v.propName) ? v.propName : '項目名未設定';
+    });
+  }else{
+    body.querySelectorAll('td').forEach(td=>{
+      if(td.classList.contains('picked')){
+        const v=d.variables.find(x=>x.sheet===td.dataset.sheet && x.addr===td.dataset.addr);
+        td.removeAttribute('title');
+        td.dataset.tip = (v && v.propName) ? `項目名: ${v.propName}` : '項目名未設定';
+      }else{
+        delete td.dataset.tip;
+        td.title = td.textContent;
+      }
+    });
+  }
+}
+// 自前ツールチップ（遅延なしで即表示。マスク／マスク済みセルにのみ反応。対象要素の上に固定表示）
+(function initMiniTooltip(){
+  let tipEl=null;
+  function ensureTip(){
+    if(!tipEl){ tipEl=document.createElement('div'); tipEl.className='mini-tooltip'; document.body.appendChild(tipEl); }
+    return tipEl;
+  }
+  function placeOnElement(el){
+    const t=ensureTip();
+    const r=el.getBoundingClientRect();
+    t.style.left=(r.left+r.width/2)+'px';
+    t.style.top=r.top+'px';
+  }
+  document.addEventListener('mouseover', e=>{
+    const el=e.target.closest('#previewBody .mask, #previewBody td.picked');
+    if(!el || !el.dataset.tip) return;
+    const t=ensureTip();
+    t.textContent=el.dataset.tip;
+    t.style.display='block';
+    placeOnElement(el);
+  });
+  document.addEventListener('mouseout', e=>{
+    const el=e.target.closest('#previewBody .mask, #previewBody td.picked');
+    if(el && tipEl) tipEl.style.display='none';
+  });
+})();
 /* ---- ④ AIで項目名生成 ---- */
 async function aiGenerateNames(){
   const d=state.draft;
@@ -849,15 +904,14 @@ async function analyzeSource(){
   try{
     loading(true, 'AIが情報を解析して入力中…');
     const payload = {
-      templateName: t.name,
-      properties: t.variables.map(v=>v.propName),
-      sourceText: m.source
+      variables: t.variables.map(v=>({ propName:v.propName, originalText:v.originalText })),
+      source: m.source
     };
     if(m.image){
-      payload.imageB64 = m.image.base64;
+      payload.imageBase64 = m.image.base64;
       payload.imageMime = m.image.mime;
     }
-    const { values } = await callAI('analyzeContractSource', payload);
+    const { values } = await callAI('extractValues', payload);
     t.variables.forEach(v=>{
       if(values && values[v.propName] !== undefined){
         m.values[v.propName] = values[v.propName];
