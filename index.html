@@ -428,14 +428,13 @@ function viewTemplateNew(app){
   app.innerHTML = `
     <h1 style="margin:0 0 6px">フォーマットを${editing?'編集':'保存'}</h1>
     <p class="lead">${editing
-      ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'
-      : '① ファイルをアップロード → ② フォーマット名を入力 → ③ 可変部分をマスク → ④ AIが項目名を提案 → ⑤ 調整して保存'}</p>
+      ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'}</p>
     <div class="field" style="max-width:520px">
       <label class="lbl section-heading">${editing?'':'① '}フォーマット名</label>
       <input type="text" id="tplName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
     </div>
     <div id="uploadArea" ${editing?'style="display:none"':''}>
-      <label class="lbl">② フォーマットファイル（Word .docx / Excel .xlsx）</label>
+      <label class="lbl">② フォーマットファイル（.docx / .xlsx）</label>
       <div class="dropzone" id="drop">
         <div class="big">⬆</div>
         <div>クリックまたはドラッグ＆ドロップでアップロード</div>
