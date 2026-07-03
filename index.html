@@ -44,7 +44,10 @@
   .wrap{width:100%; margin:0; padding:var(--gutter) var(--gutter) 80px}
   .crumbs{color:var(--muted); font-size:13px; margin-bottom:18px}
   .crumbs b{color:var(--ink)}
-  h1{font-size:26px; margin:0 0 6px; letter-spacing:.01em}
+  h1{font-size:26px; margin:0; letter-spacing:.01em}
+  /* ページ見出し行：ボタンの有無に関わらずタイトルの上端位置をそろえるため flex-start で統一 */
+  .page-head{display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:18px}
+  .page-head h1{margin:0}
   h2{font-size:19px; margin:0 0 14px}
   .lead{color:var(--muted); font-size:14px; margin:0 0 26px} /* 文字サイズを14pxに小さく調整 */
   .grid{display:grid; gap:18px}
@@ -345,8 +348,8 @@ function renderMakeWorkarea(){
 ============================================================ */
 function viewTemplates(app){
   app.innerHTML = `
-    <div class="row" style="justify-content:space-between;margin-bottom:18px">
-      <h1 style="margin:0">フォーマット管理</h1>
+    <div class="page-head">
+      <h1>フォーマット管理</h1>
       <button class="btn" onclick="startTemplateNew()">＋ 新規フォーマット</button>
     </div>
     <div class="grid" id="tplList"></div>`;
@@ -399,7 +402,7 @@ function viewTemplateNew(app){
   const d=state.draft;
   const editing=!!d.editId;
   app.innerHTML = `
-    <h1>フォーマットを${editing?'編集':'保存'}</h1>
+    <h1 style="margin:0 0 6px">フォーマットを${editing?'編集':'保存'}</h1>
     <p class="lead">${editing
       ? '登録済みのフォーマットを再調整できます。名前・マスク・項目名を変更して上書き保存してください。'
       : '① ファイルをアップロード → ② フォーマット名を入力 → ③ 可変部分をマスク → ④ AIが項目名を提案 → ⑤ 調整して保存'}</p>
