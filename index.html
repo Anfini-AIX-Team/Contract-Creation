@@ -492,6 +492,7 @@ function buildMaskArea(){
             <button data-mode="add" class="${d.maskMode==='erase'?'':'on'}">✏️ 追加</button>
             <button data-mode="erase" class="erase ${d.maskMode==='erase'?'on':''}">🩹 除去</button>
           </div>
+          <button class="btn sm accent" id="autoDetectBtn" style="margin-left:8px">🤖 AIで自動マスク</button>
         </div>
         <div class="pane-head" style="border-top:none;padding-top:0">
           <span class="hint" style="margin:0" id="maskHelp"></span>
@@ -540,6 +541,7 @@ function buildMaskArea(){
     renderXlsxPreview(body);
   }
   applyMaskModeUI();
+  document.getElementById('autoDetectBtn').onclick=aiAutoMask;
   document.getElementById('aiNameBtn').onclick=aiGenerateNames;
   document.getElementById('saveTplBtn').onclick=saveTemplate;
   refreshVarList();
@@ -802,6 +804,97 @@ function refreshMaskTitles(){
     if(el && tipEl) tipEl.style.display='none';
   });
 })();
+/* ---- AIで自動マスク：文書/シートをまるごとAIに渡し、可変部分を自動検出してマスクする ---- */
+async function aiAutoMask(){
+  const d=state.draft;
+  try{
+    if(d.fileType==='docx'){
+      loading(true, 'AIが本文から可変部分を検出中…');
+      const body=document.getElementById('previewBody');
+      const full=previewFullText(body);
+      const { variables, error } = await callAI('suggestVariables', { fileType:'docx', fullText: full });
+      if(error) throw new Error(error);
+      loading(false);
+      addAutoDetectedDocxVars(variables||[], full);
+    }else{
+      const cells=[];
+      d.workbook.SheetNames.forEach(sn=>{
+        const ws=d.workbook.Sheets[sn]; if(!ws['!ref']) return;
+        const range=XLSX.utils.decode_range(ws['!ref']);
+        const maxR=Math.min(range.e.r, range.s.r+199);
+        for(let r=range.s.r;r<=maxR;r++){
+          for(let c=range.s.c;c<=range.e.c;c++){
+            const addr=XLSX.utils.encode_cell({r,c});
+            const cell=ws[addr];
+            const val=cell ? (cell.w!=null?cell.w:cell.v) : '';
+            if(val!=='' && val!=null) cells.push({ sheet:sn, addr, value:String(val) });
+          }
+        }
+      });
+      if(!cells.length){ toast('検出対象のセルが見つかりませんでした', true); return; }
+      loading(true, 'AIがシートから可変セルを検出中…');
+      const { variables, error } = await callAI('suggestVariables', { fileType:'xlsx', cells });
+      if(error) throw new Error(error);
+      loading(false);
+      addAutoDetectedXlsxVars(variables||[]);
+    }
+  }catch(e){ loading(false); toast('自動マスクに失敗しました: '+e.message, true); }
+}
+// docx：AIが返した{text, propName}を、本文中の出現位置に順番に割り当ててマスク化する
+function addAutoDetectedDocxVars(list, full){
+  if(!list.length){ toast('可変部分が見つかりませんでした', true); return; }
+  const d=state.draft;
+  const nextOcc={}; // 同一文言が複数回出てくる場合に、出現順で重複なく割り当てるためのカウンタ
+  let added=0, skipped=0;
+  list.forEach(item=>{
+    const text=String(item && item.text || '').trim();
+    if(!text) return;
+    const occurrence = nextOcc[text]||0;
+    nextOcc[text]=occurrence+1;
+    const positions=allIndexOf(full, text);
+    if(positions[occurrence]==null){ skipped++; return; } // 本文中に見つからない箇所は除外
+    if(d.variables.some(v=>v.originalText===text && v.occurrence===occurrence)) return; // 既にマスク済みならスキップ
+    d.variables.push({ key:uid(), originalText:text, occurrence, propName: uniquePropName_(d, item.propName) });
+    added++;
+  });
+  renderDocxPreview(document.getElementById('previewBody'));
+  applyMaskModeUI();
+  refreshVarList();
+  toast(added
+    ? `AIが${added}件の可変部分を自動マスクしました${skipped?`（${skipped}件は本文と一致せず除外）`:''}`
+    : '新たに検出できる箇所はありませんでした');
+}
+// xlsx：AIが返した{sheet, addr, propName}のセルをマスク化する
+function addAutoDetectedXlsxVars(list){
+  if(!list.length){ toast('可変セルが見つかりませんでした', true); return; }
+  const d=state.draft;
+  let added=0;
+  list.forEach(item=>{
+    const sheet=item && item.sheet, addr=item && item.addr;
+    if(!sheet || !addr) return;
+    if(d.variables.some(v=>v.sheet===sheet && v.addr===addr)) return; // 既にマスク済みならスキップ
+    const ws=d.workbook.Sheets[sheet]; if(!ws) return;
+    const cell=ws[addr]; const val=cell ? (cell.w!=null?cell.w:cell.v) : '';
+    if(val==='' || val==null) return;
+    d.variables.push({ key:uid(), sheet, addr, originalText:String(val), propName: uniquePropName_(d, item.propName) });
+    added++;
+  });
+  const body=document.getElementById('previewBody');
+  if(body){
+    body.querySelectorAll('td').forEach(td=>{
+      if(d.variables.some(v=>v.sheet===td.dataset.sheet && v.addr===td.dataset.addr)) td.classList.add('picked');
+    });
+  }
+  refreshVarList();
+  toast(added ? `AIが${added}件の可変セルを自動マスクしました` : '新たに検出できるセルはありませんでした');
+}
+// 項目名の重複を避けるため、既存と被る場合は末尾に(2)(3)…を付与する
+function uniquePropName_(d, base){
+  base=String(base||'').trim() || '項目';
+  let name=base, i=2;
+  while(d.variables.some(v=>v.propName===name)){ name=base+'('+i+')'; i++; }
+  return name;
+}
 /* ---- ④ AIで項目名生成 ---- */
 async function aiGenerateNames(){
   const d=state.draft;
