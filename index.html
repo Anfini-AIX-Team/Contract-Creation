@@ -434,14 +434,16 @@ function viewTemplateNew(app){
     <div id="uploadArea" ${editing?'style="display:none"':''}>
       <label class="lbl">フォーマットファイル（Word .docx / Excel .xlsx）</label>
       <div class="dropzone" id="drop">
-        <div class="big">⬆</div>
+        <div class="big" style="display:grid;place-items:center;margin-bottom:6px">
+          <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><polyline points="9 15 12 12 15 15"></polyline></svg>
+        </div>
         <div>クリックまたはドラッグ＆ドロップでアップロード</div>
         <div class="hint">.docx / .xlsx に対応</div>
       </div>
       <input type="file" id="fileInput" accept=".docx,.xlsx" style="display:none">
     </div>
     ${editing?`<div class="row" style="max-width:520px;margin:-6px 0 4px">
-      <button class="btn ghost sm" id="replaceFileBtn">⬆ ファイルを差し替える</button>
+      <button class="btn ghost sm" id="replaceFileBtn"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-2px;margin-right:2px"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="12" y1="18" x2="12" y2="12"></line><polyline points="9 15 12 12 15 15"></polyline></svg> ファイルを差し替える</button>
       <span class="hint" style="margin:0">別のWord/Excelに変更するとマスクはリセットされます。</span>
       <input type="file" id="replaceFileInput" accept=".docx,.xlsx" style="display:none">
     </div>`:''}
