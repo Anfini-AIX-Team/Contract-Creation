@@ -900,23 +900,15 @@ function refreshVarList(){
   document.getElementById('varCount').textContent=d.variables.length;
   const list=document.getElementById('varList');
   if(!d.variables.length){ list.innerHTML='<div class="empty">左側でマスクした部分がここに並びます。</div>'; return; }
-  // docxは同一文言の総出現数を数えて「何箇所目か」を表示するための全文
-  let fullForCount='';
-  if(d.fileType==='docx'){ const b=document.getElementById('previewBody'); if(b) fullForCount=previewFullText(b); }
   list.innerHTML='';
   let dragKey=null; // ドラッグ中の変数key（並べ替え用）
   d.variables.forEach(v=>{
     const item=document.createElement('div'); item.className='var-item'; item.draggable=true; item.dataset.key=v.key;
     const loc=v.addr?` <span style="color:var(--brand)">[${v.sheet}!${v.addr}]</span>`:'';
-    let occBadge='';
-    if(d.fileType==='docx'){
-      const total=allIndexOf(fullForCount, v.originalText).length;
-      if(total>1) occBadge=` <span class="pill" style="background:var(--accent-soft);color:var(--brand-ink)">${(v.occurrence??0)+1}/${total}箇所目</span>`;
-    }
     item.innerHTML=`
       <span class="drag-handle" title="ドラッグで並べ替え">${icon('grip',16)}</span>
       <div class="var-item-body">
-        <div class="orig">元テキスト:${loc}${occBadge} <b>${esc(v.originalText.slice(0,60))}</b></div>
+        <div class="orig">元テキスト:${loc} <b>${esc(v.originalText.slice(0,60))}</b></div>
         <div class="prop-row">
           <input type="text" placeholder="項目名（例：甲の会社名）" value="${esc(v.propName)}">
           <button class="icon-btn" title="削除">${icon('x',15)}</button>
