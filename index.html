@@ -183,6 +183,19 @@
   .mini-tooltip{position:fixed;z-index:9999;background:var(--ink);color:#fff;font-size:12px;font-weight:600;
     padding:5px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow);
     transform:translate(-50%,-100%);margin-top:-10px;display:none}
+  /* ==== 共通認証ゲート（Auth Gate） ==== */
+  .authgate-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center}
+  .authgate-overlay.hidden{display:none}
+  .authgate-box{background:var(--surface);border-radius:16px;padding:36px;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.18);position:relative;max-height:90vh;overflow-y:auto}
+  .authgate-icon{margin-bottom:12px;color:var(--brand)}
+  .authgate-box h2{font-size:18px;font-weight:700;margin-bottom:6px}
+  .authgate-box p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6}
+  .authgate-box input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;background:var(--bg);outline:none;margin-bottom:10px}
+  .authgate-box input:focus{border-color:var(--brand);background:#fff}
+  .authgate-status{font-size:12px;text-align:center;min-height:18px;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:4px}
+  .authgate-close{position:absolute;top:20px;right:20px;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;display:flex}
+  .authgate-close:hover{color:var(--ink)}
+  .authgate-spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;vertical-align:-2px;animation:spin .7s linear infinite}
 </style>
 </head>
 <body>
@@ -197,8 +210,31 @@
     <div class="top-spacer"></div>
     <button class="link-btn" onclick="go('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>生成履歴</button>
     <button class="link-btn" onclick="go('templates')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>フォーマット管理</button>
+    <div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-left:12px;">
+      <span id="authStatusText" style="color:var(--muted);display:inline-flex;align-items:center;gap:4px;"></span>
+      <button onclick="AuthGate.show()" style="height:28px;box-sizing:border-box;background:none;border:1px solid var(--line);border-radius:6px;padding:0 10px;font-size:11px;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;">変更</button>
+    </div>
   </div>
 </header>
+
+<!-- ==== 共通認証ゲート（Auth Gate）：IDは変更しないこと ==== -->
+<div class="authgate-overlay hidden" id="modalOverlay">
+  <div class="authgate-box">
+    <button class="authgate-close" onclick="AuthGate.close()" title="閉じる">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
+    </button>
+    <div class="authgate-icon">
+      <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
+    </div>
+    <h2>パスワードを入力</h2>
+    <p>管理者から共有されたパスワードを入力してください。<br>認証後、自動でAI機能が使えるようになります。</p>
+    <input type="password" id="modalPassword" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')AuthGate.verify()">
+    <button class="btn" style="width:100%;justify-content:center;" onclick="AuthGate.verify()" id="modalBtn">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>ログイン
+    </button>
+    <div class="authgate-status" id="modalStatus"></div>
+  </div>
+</div>
 <main id="app"></main>
 <div class="loading-overlay" id="loading"><div class="loading-box"><span class="spinner"></span><span id="loadingText">AIが処理しています…</span></div></div>
 <div class="backdrop" id="backdrop"></div>
@@ -259,7 +295,10 @@ function icon(name, size){
     uploadArrow: '<path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line>',
     grip: '<circle cx="9" cy="6" r="1"></circle><circle cx="9" cy="12" r="1"></circle><circle cx="9" cy="18" r="1"></circle><circle cx="15" cy="6" r="1"></circle><circle cx="15" cy="12" r="1"></circle><circle cx="15" cy="18" r="1"></circle>',
     history: '<path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path>',
-    x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>'
+    x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
+    lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
+    unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>',
+    xCircle: '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>'
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex:none">${paths[name]||''}</svg>`;
 }
@@ -292,13 +331,15 @@ function download(blob, filename){ const a=document.createElement('a'); a.href=U
    AI呼び出し（すべてGAS Web App経由でGeminiを実行）
 ============================================================ */
 function gasReady(){ return GAS_URL && !/PUT_YOUR_DEPLOY_ID_HERE/.test(GAS_URL); }
+let _gasPassword = '';
 async function callAI(action, payload){
   if(!gasReady()){ throw new Error('AI接続先が未設定です。管理者にお問い合わせください。'); }
+  if(!_gasPassword){ AuthGate.show(); throw new Error('先にパスワードでログインしてください。'); }
   const res = await fetch(GAS_URL, {
     method:'POST',
     // text/plain にすることでCORSプリフライトを回避（GAS Web Appの定石）
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, payload })
+    body: JSON.stringify({ action, payload, password: _gasPassword })
   });
   const data = await res.json();
   if(data.error) throw new Error('AIエラー: '+data.error);
@@ -985,6 +1026,7 @@ function refreshMaskTitles(){
 })();
 /* ---- AIで自動マスク：文書/シートをまるごとAIに渡し、可変部分を自動検出してマスクする ---- */
 async function aiAutoMask(){
+  if(!_gasPassword){ AuthGate.show(); return; }
   const d=state.draft;
   try{
     if(d.fileType==='docx'){
@@ -992,7 +1034,7 @@ async function aiAutoMask(){
       const body=document.getElementById('previewBody');
       const full=previewFullText(body);
       const { variables, error } = await callAI('suggestVariables', { fileType:'docx', fullText: full });
-      if(error) throw new Error(error);
+      if (error) throw new Error(error);
       loading(false);
       addAutoDetectedDocxVars(variables||[], full);
     }else{
@@ -1013,7 +1055,7 @@ async function aiAutoMask(){
       if(!cells.length){ toast('検出対象のセルが見つかりませんでした', true); return; }
       loading(true, 'AIがシートから可変セルを検出中…');
       const { variables, error } = await callAI('suggestVariables', { fileType:'xlsx', cells });
-      if(error) throw new Error(error);
+      if (error) throw new Error(error);
       loading(false);
       addAutoDetectedXlsxVars(variables||[]);
     }
@@ -1076,6 +1118,7 @@ function uniquePropName_(d, base){
 }
 /* ---- ④ AIで項目名生成 ---- */
 async function aiGenerateNames(){
+  if(!_gasPassword){ AuthGate.show(); return; }
   const d=state.draft;
   if(!d.variables.length){ toast('先にマスクしてください', true); return; }
   try{
@@ -1171,6 +1214,7 @@ function renderAutoBox(){
   document.getElementById('analyzeBtn').onclick=analyzeSource;
 }
 async function analyzeSource(){
+  if(!_gasPassword){ AuthGate.show(); return; }
   const m=state.make, t=m.template;
   if(!m.source.trim() && !m.image){ toast('テキストを貼り付けるか、画像を添付してください', true); return; }
   try{
@@ -1340,6 +1384,84 @@ async function generateXlsx(t, values, filename){
   const arr=XLSX.write(wb,{type:'array',bookType:'xlsx',cellStyles:true});
   download(new Blob([arr],{type:'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}), `${filename}.xlsx`);
 }
+/* ============================================================
+   共通認証ゲート（AuthGate）
+   他アプリへ移植する際は AUTH_CONFIG だけを書き換えてください。
+============================================================ */
+const AUTH_CONFIG = {
+  gasUrl: GAS_URL,
+  appId: 'contract',
+  checkModel: 'gemini-1.5-flash-latest',
+  storageKey: 'gas_pw_contract',
+  onAuthenticated: (password) => { _gasPassword = password; }
+};
+
+const AuthGate = (() => {
+  function show(){
+    document.getElementById('modalOverlay').classList.remove('hidden');
+    setTimeout(()=>document.getElementById('modalPassword').focus(),100);
+  }
+  function close(){
+    document.getElementById('modalOverlay').classList.add('hidden');
+  }
+  function setStatus(msg, color){
+    const el=document.getElementById('modalStatus');
+    if(el){ el.innerHTML=msg; el.style.color=color; }
+  }
+  function setBadge(authenticated){
+    const el=document.getElementById('authStatusText');
+    if(!el) return;
+    if(authenticated){
+      el.innerHTML = icon('checkCircle',12) + ' 認証済み';
+      el.style.color = '#10B981';
+    }else{
+      el.innerHTML = icon('lock',12) + ' 未認証';
+      el.style.color = 'var(--muted)';
+    }
+  }
+  async function verify(){
+    const pwInput=document.getElementById('modalPassword');
+    const pw=pwInput.value;
+    const btn=document.getElementById('modalBtn');
+    if(!pw){ setStatus(icon('alert',12)+' パスワードを入力してください','#EF4444'); return; }
+    if(!gasReady()){ setStatus(icon('alert',12)+' AI接続先が未設定です','#EF4444'); return; }
+    btn.disabled=true; btn.innerHTML='<span class="authgate-spinner"></span> 認証中...';
+    setStatus('','');
+    try{
+      const res = await fetch(GAS_URL, {
+        method:'POST',
+        headers:{ 'Content-Type':'text/plain;charset=utf-8' },
+        body: JSON.stringify({ action:'checkPassword', payload:{}, password: pw })
+      });
+      const data = await res.json();
+      if(data && data.error) throw new Error(data.error);
+      if(data && data.success === false){ setStatus(icon('xCircle',12)+' パスワードが違います','#EF4444'); return; }
+      sessionStorage.setItem(AUTH_CONFIG.storageKey, pw);
+      pwInput.value='';
+      close();
+      setBadge(true);
+      AUTH_CONFIG.onAuthenticated(pw);
+    }catch(err){
+      setStatus(icon('xCircle',12)+' '+err.message,'#EF4444');
+    }finally{
+      btn.disabled=false; btn.innerHTML=icon('unlock',14)+' ログイン';
+    }
+  }
+  function init(){
+    const saved=sessionStorage.getItem(AUTH_CONFIG.storageKey);
+    if(saved){
+      close();
+      setBadge(true);
+      AUTH_CONFIG.onAuthenticated(saved);
+    }else{
+      setBadge(false);
+    }
+  }
+  return { show, close, verify, init };
+})();
+
+window.addEventListener('DOMContentLoaded', () => AuthGate.init());
+
 /* ============================================================
    起動
 ============================================================ */
