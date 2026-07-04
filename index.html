@@ -15,7 +15,10 @@
     --accent:#3B6EF0; --accent-soft:#EEF2FF; --mask:#FEF3C7; --mask-line:#D9A441;
     --danger:#EF4444; --radius:10px; --shadow:0 1px 4px rgba(17,24,39,.07),0 8px 24px rgba(17,24,39,.05);
     --text-muted:#9CA3AF; --tag-bg:#F3F4F6; --success:#10B981;
-    --gutter:28px; --header-h:65px;
+    --gutter:28px; --header-h:68px;
+    /* ==== 共通UIコンポーネント雛形のトークン名エイリアス（値はこのアプリの配色に合わせる） ==== */
+    --border:var(--line); --accent-light:var(--brand-soft);
+    --text-primary:var(--ink); --text-secondary:var(--muted);
   }
   *{box-sizing:border-box}
   html,body{height:100%}
@@ -25,18 +28,21 @@
     line-height:1.6; -webkit-font-smoothing:antialiased; font-size:14px;
     display:flex; flex-direction:column; overflow:hidden;
   }
-  header.top{
+  /* ==== 共通ヘッダー（共通UIコンポーネント雛形 準拠） ==== */
+  .app-header{
     flex:none; position:sticky; top:0; z-index:100; background:var(--surface);
-    border-bottom:1px solid var(--line);
+    border-bottom:1px solid var(--border); box-sizing:border-box; height:var(--header-h);
+    padding:0 var(--gutter); display:flex; align-items:center; gap:12px;
   }
-  .top-inner{width:100%; margin:0; padding:16px var(--gutter); display:flex; align-items:center; gap:12px}
-  .logo{display:flex; align-items:center; gap:12px; cursor:pointer}
-  .logo .badge{width:36px;height:36px;border-radius:8px;background:var(--brand);color:#fff;display:grid;place-items:center;flex:none}
-  .logo .badge svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
-  .logo .app-title{font-size:16px;font-weight:600;color:var(--ink);letter-spacing:normal;margin:0 20px 0 0;white-space:nowrap;line-height:1}
+  .app-header .logo{display:flex; align-items:center; gap:12px; height:36px; cursor:pointer}
+  .app-header .logo-badge{width:36px;height:36px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;flex:none}
+  .app-header .logo-badge svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round}
+  .app-header .app-title{font-size:16px;font-weight:600;color:var(--text-primary);margin:0 20px 0 0;white-space:nowrap;line-height:1}
+  .app-header .header-center{display:flex;align-items:center;height:36px}
+  .app-header .header-right{margin-left:auto;display:flex;align-items:center;height:36px;gap:12px}
+  .link-btn{background:none;border:none;color:var(--text-secondary);font-size:14px;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:inherit;font-weight:600}
+  .link-btn:hover{background:var(--accent-light);color:var(--brand-ink)}
   .top-spacer{flex:1}
-  .link-btn{background:none;border:none;color:var(--muted);font-size:14px;cursor:pointer;padding:8px 14px;border-radius:8px;font-family:inherit;font-weight:600}
-  .link-btn:hover{background:var(--brand-soft);color:var(--brand-ink)}
   /* main#app：ダッシュボード（home）は高さ固定で内部スクロール、それ以外は通常ページスクロール */
   main#app{flex:1; min-height:0; overflow-y:auto}
   main#app.fill{overflow:hidden; display:flex; flex-direction:column}
@@ -183,56 +189,59 @@
   .mini-tooltip{position:fixed;z-index:9999;background:var(--ink);color:#fff;font-size:12px;font-weight:600;
     padding:5px 9px;border-radius:6px;pointer-events:none;white-space:nowrap;box-shadow:var(--shadow);
     transform:translate(-50%,-100%);margin-top:-10px;display:none}
-  /* ==== 共通認証ゲート（Auth Gate） ==== */
-  .authgate-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center}
-  .authgate-overlay.hidden{display:none}
-  .authgate-box{background:var(--surface);border-radius:16px;padding:36px;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.18);position:relative;max-height:90vh;overflow-y:auto}
-  .authgate-icon{margin-bottom:12px;color:var(--brand)}
-  .authgate-box h2{font-size:18px;font-weight:700;margin-bottom:6px}
-  .authgate-box p{font-size:13px;color:var(--muted);margin-bottom:20px;line-height:1.6}
-  .authgate-box input{width:100%;border:1px solid var(--line);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;background:var(--bg);outline:none;margin-bottom:10px}
-  .authgate-box input:focus{border-color:var(--brand);background:#fff}
-  .authgate-status{font-size:12px;text-align:center;min-height:18px;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:4px}
-  .authgate-close{position:absolute;top:20px;right:20px;background:none;border:none;cursor:pointer;color:var(--muted);padding:4px;display:flex}
-  .authgate-close:hover{color:var(--ink)}
+  /* ==== 共通認証ゲート（Auth Gate）: 共通UIコンポーネント雛形 準拠 ==== */
+  .modal-overlay{position:fixed;inset:0;background:rgba(0,0,0,.45);z-index:1000;display:flex;align-items:center;justify-content:center}
+  .modal-overlay.hidden{display:none}
+  #modalOverlay .modal{background:var(--surface);border-radius:16px;padding:36px;width:100%;max-width:440px;box-shadow:0 8px 40px rgba(0,0,0,.18);position:relative;max-height:90vh;overflow-y:auto}
+  .modal-icon{margin-bottom:12px;color:var(--accent)}
+  #modalOverlay .modal h2{font-size:18px;font-weight:700;margin-bottom:6px}
+  #modalOverlay .modal p{font-size:13px;color:var(--text-muted);margin-bottom:20px;line-height:1.6}
+  #modalOverlay .modal input{width:100%;border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;font-family:inherit;background:var(--bg);outline:none;margin-bottom:10px}
+  #modalOverlay .modal input:focus{border-color:var(--accent);background:#fff}
+  .btn-primary{width:100%;padding:12px;background:var(--accent);color:#fff;border:none;border-radius:8px;font-size:14px;font-weight:600;cursor:pointer;font-family:inherit;display:flex;align-items:center;justify-content:center;gap:6px}
+  .btn-primary:hover{filter:brightness(.92)}
+  .btn-primary:disabled{opacity:.6;cursor:not-allowed}
+  .modal-status{font-size:12px;text-align:center;min-height:18px;margin-top:10px;display:flex;align-items:center;justify-content:center;gap:4px}
+  .modal-close-btn{position:absolute;top:20px;right:20px;background:none;border:none;cursor:pointer;color:var(--text-muted);padding:4px;display:flex}
+  .modal-close-btn:hover{color:var(--text-primary)}
   .authgate-spinner{width:13px;height:13px;border:2px solid rgba(255,255,255,.4);border-top-color:#fff;border-radius:50%;display:inline-block;vertical-align:-2px;animation:spin .7s linear infinite}
 </style>
 </head>
 <body>
-<header class="top">
-  <div class="top-inner">
-    <div class="logo" onclick="go('home')">
-      <span class="badge">
-        <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
-      </span>
-      <h1 class="app-title">契約書自動作成</h1>
-    </div>
-    <div class="top-spacer"></div>
+<header class="app-header">
+  <div class="logo" onclick="go('home')">
+    <span class="logo-badge">
+      <svg viewBox="0 0 24 24"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+    </span>
+    <h1 class="app-title">契約書自動作成</h1>
+  </div>
+
+  <div class="header-center" id="headerCenterSlot"></div>
+
+  <div class="header-right" id="headerRightSlot">
     <button class="link-btn" onclick="go('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>生成履歴</button>
     <button class="link-btn" onclick="go('templates')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>フォーマット管理</button>
-    <div style="display:flex;align-items:center;gap:6px;font-size:12px;margin-left:12px;">
-      <span id="authStatusText" style="color:var(--muted);display:inline-flex;align-items:center;gap:4px;"></span>
-      <button onclick="AuthGate.show()" style="height:28px;box-sizing:border-box;background:none;border:1px solid var(--line);border-radius:6px;padding:0 10px;font-size:11px;cursor:pointer;color:var(--muted);display:inline-flex;align-items:center;">変更</button>
-    </div>
+    <span id="authStatusText" style="font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;"></span>
+    <button onclick="AuthGate.show()" style="height:28px;box-sizing:border-box;background:none;border:1px solid var(--border);border-radius:6px;padding:0 10px;font-size:11px;cursor:pointer;color:var(--text-secondary);display:inline-flex;align-items:center;">変更</button>
   </div>
 </header>
 
 <!-- ==== 共通認証ゲート（Auth Gate）：IDは変更しないこと ==== -->
-<div class="authgate-overlay hidden" id="modalOverlay">
-  <div class="authgate-box">
-    <button class="authgate-close" onclick="AuthGate.close()" title="閉じる">
+<div class="modal-overlay hidden" id="modalOverlay">
+  <div class="modal">
+    <button class="modal-close-btn" onclick="AuthGate.close()" title="閉じる">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
     </button>
-    <div class="authgate-icon">
+    <div class="modal-icon">
       <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
     </div>
     <h2>パスワードを入力</h2>
     <p>管理者から共有されたパスワードを入力してください。<br>認証後、自動でAI機能が使えるようになります。</p>
     <input type="password" id="modalPassword" placeholder="パスワードを入力" onkeydown="if(event.key==='Enter')AuthGate.verify()">
-    <button class="btn" style="width:100%;justify-content:center;" onclick="AuthGate.verify()" id="modalBtn">
+    <button class="btn-primary" onclick="AuthGate.verify()" id="modalBtn">
       <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path></svg>ログイン
     </button>
-    <div class="authgate-status" id="modalStatus"></div>
+    <div class="modal-status" id="modalStatus"></div>
   </div>
 </div>
 <main id="app"></main>
@@ -307,13 +316,9 @@ function icon(name, size){
 ============================================================ */
 function sanitizeFilename(name){
   let s = String(name||'').trim();
-  // OSで使用できない文字を全角相当や空白に置き換え
   s = s.replace(/[\\/:*?"<>|]/g, '_');
-  // 制御文字を除去
   s = s.replace(/[\x00-\x1f]/g, '');
-  // 末尾のドット・空白はWindowsで問題になるため除去
   s = s.replace(/[\s.]+$/g, '');
-  // 長すぎる場合は切り詰め
   if(s.length > 150) s = s.slice(0, 150);
   return s || '契約書出力';
 }
@@ -337,7 +342,6 @@ async function callAI(action, payload){
   if(!_gasPassword){ AuthGate.show(); throw new Error('先にパスワードでログインしてください。'); }
   const res = await fetch(GAS_URL, {
     method:'POST',
-    // text/plain にすることでCORSプリフライトを回避（GAS Web Appの定石）
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },
     body: JSON.stringify({ action, payload, password: _gasPassword })
   });
@@ -355,7 +359,6 @@ function go(view, arg){
 }
 function render(view, arg){
   const app=document.getElementById('app');
-  // home（契約書作成ダッシュボード）は高さ固定＋内部スクロール、それ以外は通常ページスクロール
   app.classList.toggle('fill', view==='home');
   app.classList.toggle('wrap', view!=='home');
   app.innerHTML='';
@@ -524,9 +527,9 @@ async function importTemplates(file){
     if(!list) throw new Error('フォーマット形式のJSONではありません');
     let added=0;
     list.forEach(t=>{
-      if(!t || !t.name || !t.fileType || !t.fileBase64 || !Array.isArray(t.variables)) return; // 不正なレコードはスキップ
+      if(!t || !t.name || !t.fileType || !t.fileBase64 || !Array.isArray(t.variables)) return;
       state.templates.push({
-        id: uid(), // IDは必ず振り直し、既存フォーマットと衝突させない
+        id: uid(),
         name: String(t.name), fileType: t.fileType, fileBase64: t.fileBase64,
         variables: t.variables
       });
@@ -592,7 +595,6 @@ function viewHistory(app){
    フォーマット保存フロー
 ============================================================ */
 function startTemplateNew(){ state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], maskMode:'add', editId:null }; go('templateNew'); }
-/* 既存フォーマットを編集用に読み込む（同じファイル・マスクを引き継いで再調整） */
 async function startTemplateEdit(id){
   const t=state.templates.find(x=>x.id===id);
   if(!t){ toast('フォーマットが見つかりません', true); return; }
@@ -643,7 +645,6 @@ function viewTemplateNew(app){
   `;
   document.getElementById('tplName').oninput=e=>d.name=e.target.value;
   const fireFile=f=>{ if(f) handleTemplateFile(f); };
-  // 新規アップロード用ドロップゾーン
   const drop=document.getElementById('drop');
   const fi=document.getElementById('fileInput');
   if(drop && fi){
@@ -653,7 +654,6 @@ function viewTemplateNew(app){
     drop.ondragleave=()=>drop.classList.remove('drag');
     drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag'); fireFile(e.dataTransfer.files[0]);};
   }
-  // 編集時：ファイル差し替え
   const replaceBtn=document.getElementById('replaceFileBtn');
   const rin=document.getElementById('replaceFileInput');
   if(replaceBtn && rin){
@@ -728,7 +728,6 @@ function buildMaskArea(){
       </div>
     </div>`;
   const body=document.getElementById('previewBody');
-  // モード切替トグル
   const toggle=document.getElementById('maskToggle');
   if(toggle){
     toggle.querySelectorAll('button').forEach(btn=>{
@@ -737,13 +736,10 @@ function buildMaskArea(){
   }
   if(d.fileType==='docx'){
     renderDocxPreview(body);
-    // 鉛筆モード：選択が終わった瞬間（マウスアップ）に自動でマスク
     body.addEventListener('mouseup',()=>{
       if(state.draft.maskMode!=='add') return;
-      // 選択解除直後の誤発火を避けるため少し遅延
       setTimeout(()=>{ tryAddDocxMaskFromSelection(); },0);
     });
-    // 消しゴムモード：マスクをクリックで除去
     body.addEventListener('click',e=>{
       const m=e.target.closest('.mask'); if(!m) return;
       if(state.draft.maskMode==='erase') removeVar(m.dataset.key);
@@ -757,7 +753,6 @@ function buildMaskArea(){
   document.getElementById('saveTplBtn').onclick=saveTemplate;
   refreshVarList();
 }
-/* ---- マスクモード（鉛筆＝追加 / 消しゴム＝除去）---- */
 function setMaskMode(mode){
   state.draft.maskMode = (mode==='erase') ? 'erase' : 'add';
   applyMaskModeUI();
@@ -789,24 +784,20 @@ function applyMaskModeUI(){
     help.style.marginTop = '12px';
   }
 }
-/* ---- docx マスク ---- */
-// マスクした「その出現位置」だけをハイライトする（同一文言の他の箇所は色付けしない）
 function renderDocxPreview(body){
   const d=state.draft;
   body.innerHTML=d.previewHtml;
-  // テキストノードを文書順に集め、各ノードの開始オフセットを記録
   const walker=document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
   const nodes=[]; let n; while((n=walker.nextNode())) nodes.push(n);
   const starts=[]; let acc=0;
   nodes.forEach(nd=>{ starts.push(acc); acc+=nd.nodeValue.length; });
   const full=nodes.map(nd=>nd.nodeValue).join('');
-  // 各変数について、対象の出現位置[start,end)を求め、ノードごとに切り出して包む
   const pieceMap=new Map();
   d.variables.forEach(v=>{
     const positions=allIndexOf(full, v.originalText);
     const occ=(v.occurrence!=null?v.occurrence:0);
     const start=positions[occ];
-    if(start==null) return; // 見つからなければ色付けしない
+    if(start==null) return;
     const end=start+v.originalText.length;
     for(let i=0;i<nodes.length;i++){
       const ns=starts[i], ne=ns+nodes[i].nodeValue.length;
@@ -819,14 +810,13 @@ function renderDocxPreview(body){
   });
   pieceMap.forEach((pieces,node)=>wrapNodePieces(node,pieces));
 }
-// 1つのテキストノード内の複数区間をまとめて <span class="mask"> で包む
 function wrapNodePieces(node, pieces){
   pieces.sort((a,b)=>a.s-b.s);
   const text=node.nodeValue;
   const frag=document.createDocumentFragment();
   let cur=0;
   pieces.forEach(p=>{
-    if(p.s<cur) return;            // 区間が重なる場合はスキップ
+    if(p.s<cur) return;
     if(p.s>cur) frag.appendChild(document.createTextNode(text.slice(cur,p.s)));
     const span=document.createElement('span'); span.className='mask'; span.dataset.key=p.key;
     span.textContent=text.slice(p.s,p.e); frag.appendChild(span);
@@ -835,17 +825,15 @@ function wrapNodePieces(node, pieces){
   if(cur<text.length) frag.appendChild(document.createTextNode(text.slice(cur)));
   node.parentNode.replaceChild(frag,node);
 }
-// 鉛筆モードで選択終了時に呼ばれる。選択が無ければ静かに何もしない。
 function tryAddDocxMaskFromSelection(){
   const body=document.getElementById('previewBody');
   if(!body) return;
   const sel=window.getSelection();
   if(!sel || !sel.rangeCount) return;
   const raw=sel.toString();
-  if(!raw || !raw.trim()) return;                    // 選択なし → 無視
+  if(!raw || !raw.trim()) return;
   const range=sel.getRangeAt(0);
-  if(!body.contains(range.startContainer)) return;   // プレビュー外 → 無視
-  // 既存マスクの内側だけを選択した場合は追加しない（除去はクリックで行う）
+  if(!body.contains(range.startContainer)) return;
   const text=raw.trim();
   const full=previewFullText(body);
   const selStart=globalStartOffset(body, range);
@@ -864,12 +852,10 @@ function tryAddDocxMaskFromSelection(){
   applyMaskModeUI();
   refreshVarList();
 }
-// プレビュー内の全テキストを文書順に連結
 function previewFullText(root){
   const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let s='', n; while((n=walker.nextNode())) s+=n.nodeValue; return s;
 }
-// 選択開始位置をプレビュー全体の文字オフセットに変換
 function globalStartOffset(root, range){
   const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let offset=0, node;
@@ -879,14 +865,12 @@ function globalStartOffset(root, range){
   }
   return -1;
 }
-// endPosより前にneedleが何回出現するか（＝0始まりの出現番号）
 function countOcc(hay, needle, endPos){
   let c=0, i=0;
   while((i=hay.indexOf(needle,i))>=0 && i<endPos){ c++; i+=needle.length; }
   return c;
 }
 function allIndexOf(hay, needle){ const r=[]; if(!needle) return r; let i=0; while((i=hay.indexOf(needle,i))>=0){ r.push(i); i+=needle.length; } return r; }
-/* ---- xlsx マスク ---- */
 function renderXlsxPreview(body){
   const d=state.draft;
   body.innerHTML='';
@@ -921,14 +905,11 @@ function toggleCell(sheet,addr,val,td){
   const i=d.variables.findIndex(v=>v.sheet===sheet && v.addr===addr);
   const mode=d.maskMode||'add';
   if(mode==='erase'){
-    // 消しゴム：マスク済みのみ解除、未マスクは無視
     if(i>=0){ d.variables.splice(i,1); td.classList.remove('picked'); refreshVarList(); }
     return;
   }
-  // 鉛筆（追加）：未マスクなら追加。既にマスク済みならそのまま。
   if(i<0){ d.variables.push({ key:uid(), sheet, addr, originalText:val, propName:'' }); td.classList.add('picked'); refreshVarList(); }
 }
-/* ---- 変数リスト ---- */
 function removeVar(key){
   const d=state.draft;
   d.variables=d.variables.filter(v=>v.key!==key);
@@ -942,7 +923,7 @@ function refreshVarList(){
   const list=document.getElementById('varList');
   if(!d.variables.length){ list.innerHTML='<div class="empty">左側でマスクした部分がここに並びます。</div>'; return; }
   list.innerHTML='';
-  let dragKey=null; // ドラッグ中の変数key（並べ替え用）
+  let dragKey=null;
   d.variables.forEach(v=>{
     const item=document.createElement('div'); item.className='var-item'; item.draggable=true; item.dataset.key=v.key;
     const loc=v.addr?` <span style="color:var(--brand)">[${v.sheet}!${v.addr}]</span>`:'';
@@ -974,7 +955,6 @@ function refreshVarList(){
   });
   refreshMaskTitles();
 }
-// マスク済み部分にカーソルを合わせたときに項目名をツールチップで表示する（自前実装＝表示が速い）
 function refreshMaskTitles(){
   const d=state.draft;
   const body=document.getElementById('previewBody');
@@ -998,7 +978,6 @@ function refreshMaskTitles(){
     });
   }
 }
-// 自前ツールチップ（遅延なしで即表示。マスク／マスク済みセルにのみ反応。対象要素の上に固定表示）
 (function initMiniTooltip(){
   let tipEl=null;
   function ensureTip(){
@@ -1024,7 +1003,6 @@ function refreshMaskTitles(){
     if(el && tipEl) tipEl.style.display='none';
   });
 })();
-/* ---- AIで自動マスク：文書/シートをまるごとAIに渡し、可変部分を自動検出してマスクする ---- */
 async function aiAutoMask(){
   if(!_gasPassword){ AuthGate.show(); return; }
   const d=state.draft;
@@ -1061,11 +1039,10 @@ async function aiAutoMask(){
     }
   }catch(e){ loading(false); toast('自動マスクに失敗しました: '+e.message, true); }
 }
-// docx：AIが返した{text, propName}を、本文中の出現位置に順番に割り当ててマスク化する
 function addAutoDetectedDocxVars(list, full){
   if(!list.length){ toast('可変部分が見つかりませんでした', true); return; }
   const d=state.draft;
-  const nextOcc={}; // 同一文言が複数回出てくる場合に、出現順で重複なく割り当てるためのカウンタ
+  const nextOcc={};
   let added=0, skipped=0;
   list.forEach(item=>{
     const text=String(item && item.text || '').trim();
@@ -1073,8 +1050,8 @@ function addAutoDetectedDocxVars(list, full){
     const occurrence = nextOcc[text]||0;
     nextOcc[text]=occurrence+1;
     const positions=allIndexOf(full, text);
-    if(positions[occurrence]==null){ skipped++; return; } // 本文中に見つからない箇所は除外
-    if(d.variables.some(v=>v.originalText===text && v.occurrence===occurrence)) return; // 既にマスク済みならスキップ
+    if(positions[occurrence]==null){ skipped++; return; }
+    if(d.variables.some(v=>v.originalText===text && v.occurrence===occurrence)) return;
     d.variables.push({ key:uid(), originalText:text, occurrence, propName: uniquePropName_(d, item.propName) });
     added++;
   });
@@ -1085,7 +1062,6 @@ function addAutoDetectedDocxVars(list, full){
     ? `AIが${added}件の可変部分を自動マスクしました${skipped?`（${skipped}件は本文と一致せず除外）`:''}`
     : '新たに検出できる箇所はありませんでした');
 }
-// xlsx：AIが返した{sheet, addr, propName}のセルをマスク化する
 function addAutoDetectedXlsxVars(list){
   if(!list.length){ toast('可変セルが見つかりませんでした', true); return; }
   const d=state.draft;
@@ -1093,7 +1069,7 @@ function addAutoDetectedXlsxVars(list){
   list.forEach(item=>{
     const sheet=item && item.sheet, addr=item && item.addr;
     if(!sheet || !addr) return;
-    if(d.variables.some(v=>v.sheet===sheet && v.addr===addr)) return; // 既にマスク済みならスキップ
+    if(d.variables.some(v=>v.sheet===sheet && v.addr===addr)) return;
     const ws=d.workbook.Sheets[sheet]; if(!ws) return;
     const cell=ws[addr]; const val=cell ? (cell.w!=null?cell.w:cell.v) : '';
     if(val==='' || val==null) return;
@@ -1109,14 +1085,12 @@ function addAutoDetectedXlsxVars(list){
   refreshVarList();
   toast(added ? `AIが${added}件の可変セルを自動マスクしました` : '新たに検出できるセルはありませんでした');
 }
-// 項目名の重複を避けるため、既存と被る場合は末尾に(2)(3)…を付与する
 function uniquePropName_(d, base){
   base=String(base||'').trim() || '項目';
   let name=base, i=2;
   while(d.variables.some(v=>v.propName===name)){ name=base+'('+i+')'; i++; }
   return name;
 }
-/* ---- ④ AIで項目名生成 ---- */
 async function aiGenerateNames(){
   if(!_gasPassword){ AuthGate.show(); return; }
   const d=state.draft;
@@ -1128,14 +1102,12 @@ async function aiGenerateNames(){
     loading(false); refreshVarList(); toast('項目名を生成しました');
   }catch(e){ loading(false); toast(e.message, true); }
 }
-/* ---- ⑥ 保存 ---- */
 function saveTemplate(){
   const d=state.draft;
   if(!d.name.trim()){ toast('フォーマット名を入力してください', true); return; }
   if(!d.variables.length){ toast('最低1つはマスクしてください', true); return; }
   const empty=d.variables.filter(v=>!v.propName.trim());
   if(empty.length){ toast('すべての項目名を入力してください', true); return; }
-  // propName重複チェック
   const names=d.variables.map(v=>v.propName.trim());
   if(new Set(names).size!==names.length){ toast('項目名が重複しています', true); return; }
   const record={
@@ -1155,15 +1127,10 @@ function saveTemplate(){
   }
   go('templates');
 }
-/* ============================================================
-   契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
-============================================================ */
 function switchMode(mode){ state.make.mode=mode; if(mode==='auto'&&!state.make.source){state.make.source='';} renderMakeWorkarea(); }
 function renderAutoBox(){
   const box=document.getElementById('autoBox');
   const m=state.make;
-  
-  // 画像が既にある場合はプレビュー用の画像タグを生成
   const imgPreviewHtml = m.image 
     ? `<div class="thumb-preview"><img src="data:${m.image.mime};base64,${m.image.base64}" alt="プレビュー"></div>` 
     : '';
@@ -1199,8 +1166,6 @@ function renderAutoBox(){
     const base64Str = await fileToBase64(f);
     m.image={ name:f.name, mime:f.type, base64:base64Str };
     document.getElementById('imgName').textContent='選択中: '+f.name;
-    
-    // サムネイルを動的に差し替え
     const container = document.getElementById('thumbContainer');
     if (container) {
       container.innerHTML = `<div class="thumb-preview"><img src="data:${f.type};base64,${base64Str}" alt="プレビュー"></div>`;
@@ -1260,9 +1225,6 @@ function renderMakeFormFields(){
   });
   document.getElementById('confirmBtn').onclick=openConfirm;
 }
-/* ============================================================
-   内容確認ダイアログ → 出力
-============================================================ */
 function openConfirm(){
   const m=state.make, t=m.template;
   const bd=document.getElementById('backdrop');
@@ -1271,8 +1233,6 @@ function openConfirm(){
       <div class="k">${esc(v.propName)}</div>
       <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}">
     </div>`).join('');
-  
-  // 初期ファイル名をセット
   const defaultFilename = m.outputFilename || t.name;
   bd.innerHTML=`
     <div class="modal">
@@ -1291,7 +1251,6 @@ function openConfirm(){
       </div>
     </div>`;
   bd.classList.add('show');
-  
   const fnInput = document.getElementById('outputFilenameInput');
   fnInput.oninput = e => { m.outputFilename = e.target.value; };
   bd.querySelectorAll('input[data-prop]').forEach(inp=>{
@@ -1312,34 +1271,30 @@ async function generateOutput(filename){
     if(t.fileType==='docx') await generateDocx(t, m.values, filename);
     else await generateXlsx(t, m.values, filename);
     loading(false);
-    // 生成履歴に記録（値のスナップショットを保存し、後から再出力できるようにする）
     state.history.unshift({
       id: uid(), templateId: t.id, templateName: t.name, fileType: t.fileType,
       filename, values: JSON.parse(JSON.stringify(m.values)), createdAt: new Date().toISOString()
     });
-    if(state.history.length > 200) state.history.length = 200; // 肥大化防止
+    if(state.history.length > 200) state.history.length = 200;
     saveHistory();
     toast('契約書を出力しました');
   }catch(e){ loading(false); toast('生成エラー: '+e.message, true); }
 }
-/* ---- docx 生成（XMLを直接置換して書式を保持 / 出現位置ごとに個別置換） ---- */
 async function generateDocx(t, values, filename){
   const zip=new PizZip(base64ToAb(t.fileBase64));
   const xmlFile=zip.file('word/document.xml');
   if(!xmlFile) throw new Error('document.xmlが見つかりません');
   const doc=new DOMParser().parseFromString(xmlFile.asText(),'application/xml');
-  // 文書全体の w:t を文書順に集約（マスク時のプレビュー連結と同じ数え方に合わせる）
   const runs=[...doc.getElementsByTagName('w:t')].map(node=>({node}));
   const full=runs.map(r=>r.node.textContent).join('');
   const missing=[], jobs=[];
   t.variables.forEach(v=>{
     const positions=allIndexOf(full, v.originalText);
-    const occ=(v.occurrence!=null?v.occurrence:0);   // 何番目の出現か
+    const occ=(v.occurrence!=null?v.occurrence:0);
     const start=positions[occ];
     if(start==null){ missing.push(v.propName); return; }
     jobs.push({ start, end:start+v.originalText.length, value:(values[v.propName]||'') });
   });
-  // 右（後方）から順に置換 → 前方の位置がずれず、同一文言でも各出現を正しく差し替えられる
   jobs.sort((a,b)=>b.start-a.start);
   jobs.forEach(j=>replaceRangeInRuns(runs, j.start, j.end, j.value));
   const out=new XMLSerializer().serializeToString(doc);
@@ -1349,7 +1304,6 @@ async function generateDocx(t, values, filename){
   if(missing.length) toast('一部の項目が本文中に見つかりませんでした: '+missing.join(', '), true);
 }
 function setT(node, text){ node.textContent=text; node.setAttribute('xml:space','preserve'); }
-// 文書全体の連結テキストにおける絶対区間[start,end)を、複数runにまたがって置換
 function replaceRangeInRuns(runs, start, end, value){
   const texts=runs.map(r=>r.node.textContent);
   let pos=0, sR=-1, sO=0, eR=-1, eO=0;
@@ -1368,7 +1322,6 @@ function replaceRangeInRuns(runs, start, end, value){
   }
   return true;
 }
-/* ---- xlsx 生成（セル値を書き換えて書式を保持） ---- */
 async function generateXlsx(t, values, filename){
   const wb=XLSX.read(base64ToAb(t.fileBase64),{type:'array',cellStyles:true});
   t.variables.forEach(v=>{
@@ -1465,7 +1418,6 @@ window.addEventListener('DOMContentLoaded', () => AuthGate.init());
 /* ============================================================
    起動
 ============================================================ */
-// 外部ライブラリの読み込み確認（CDN失敗時に原因を分かりやすく表示）
 (function checkLibs(){
   const miss=[];
   if(typeof mammoth==='undefined') miss.push('mammoth（Word読み込み）');
@@ -1476,6 +1428,7 @@ window.addEventListener('DOMContentLoaded', () => AuthGate.init());
   }
 })();
 go('home');
+
 </script>
 </body>
 </html>
