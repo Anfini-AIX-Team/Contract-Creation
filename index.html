@@ -1408,6 +1408,11 @@ async function runTemplateStructuralEdit(mutateFn){
 }
 /* ---- 表の行を複製して上/下に追加する ---- */
 async function addTableRow(trEl, insertBelow){
+  if(_structuralEditBusy) return;
+  _structuralEditBusy = true;
+  try{ await addTableRow_(trEl, insertBelow); } finally { _structuralEditBusy = false; }
+}
+async function addTableRow_(trEl, insertBelow){
   const info=previewTableRowIndex(trEl);
   if(!info) return;
   const previewBody=document.getElementById('previewBody');
@@ -1437,6 +1442,11 @@ async function addTableRow(trEl, insertBelow){
 }
 /* ---- 表の行を削除する（最低1行は残す） ---- */
 async function deleteTableRow(trEl){
+  if(_structuralEditBusy) return;
+  _structuralEditBusy = true;
+  try{ await deleteTableRow_(trEl); } finally { _structuralEditBusy = false; }
+}
+async function deleteTableRow_(trEl){
   const info=previewTableRowIndex(trEl);
   if(!info) return;
   if(info.rowCount<=1){ toast('最後の1行は削除できません', true); return; }
@@ -1464,6 +1474,11 @@ async function deleteTableRow(trEl){
 }
 /* ---- 表の列を複製して左/右に追加する ---- */
 async function addTableColumn(tdEl, insertRight){
+  if(_structuralEditBusy) return;
+  _structuralEditBusy = true;
+  try{ await addTableColumn_(tdEl, insertRight); } finally { _structuralEditBusy = false; }
+}
+async function addTableColumn_(tdEl, insertRight){
   const info=previewTableCellIndex(tdEl);
   if(!info) return;
   const previewBody=document.getElementById('previewBody');
@@ -1509,6 +1524,11 @@ async function addTableColumn(tdEl, insertRight){
 }
 /* ---- 表の列を削除する（最低1列は残す） ---- */
 async function deleteTableColumn(tdEl){
+  if(_structuralEditBusy) return;
+  _structuralEditBusy = true;
+  try{ await deleteTableColumn_(tdEl); } finally { _structuralEditBusy = false; }
+}
+async function deleteTableColumn_(tdEl){
   const info=previewTableCellIndex(tdEl);
   if(!info) return;
   if(info.colCount<=1){ toast('最後の1列は削除できません', true); return; }
@@ -1551,6 +1571,11 @@ async function deleteTableColumn(tdEl){
 }
 /* ---- 段落の文言修正（マスクを含まない段落のみ、直接テキストを書き換えられるようにする） ---- */
 async function editParagraphText(pEl){
+  if(_structuralEditBusy) return;
+  _structuralEditBusy = true;
+  try{ await editParagraphText_(pEl); } finally { _structuralEditBusy = false; }
+}
+async function editParagraphText_(pEl){
   if(pEl.querySelector('.mask')){ toast('マスクを含む段落は直接編集できません。マスクを解除してから編集してください。', true); return; }
   const previewBody=document.getElementById('previewBody');
   const mapOld=previewTextMap(previewBody);
@@ -1629,7 +1654,20 @@ function onOutsideClickCloseToolbar(e){
   const box=document.getElementById('tableEditToolbar');
   if(box && !box.contains(e.target)) removeTableEditToolbar();
 }
+// 構造編集系の処理（行グループ化・表の行列編集など）が二重に走らないようにするためのフラグ。
+// ボタンの連打やクリックの取りこぼしで、同じ操作が2回実行され「複製されたグループ」等が
+// できてしまう不具合を防ぐ。
+let _structuralEditBusy = false;
 async function createRowGroup(memberKeys){
+  if(_structuralEditBusy) return;
+  _structuralEditBusy = true;
+  try{
+    await createRowGroup_(memberKeys);
+  } finally {
+    _structuralEditBusy = false;
+  }
+}
+async function createRowGroup_(memberKeys){
   const d=state.draft;
   if(!memberKeys || !memberKeys.length) return;
   const memberVars=memberKeys.map(k=>d.variables.find(v=>v.key===k)).filter(Boolean);
@@ -2377,35 +2415,40 @@ async function analyzeSource(){
   try{
     loading(true, 'AIが情報を解析して入力中…');
     ensureGroupValues(m);
-    // 通常項目に加えて、繰り返し行のメンバー項目名も対象に含める（1件目の内容として使う）
-    const groupMemberVars=[];
-    const seenGroupNames=new Set();
-    (t.repeatGroups||[]).forEach(g=>{
-      g.memberPropNames.forEach(p=>{
-        if(seenGroupNames.has(p)) return;
-        seenGroupNames.add(p);
-        const v=t.variables.find(x=>x.repeatGroupId===g.id && x.propName===p);
-        if(v) groupMemberVars.push(v);
-      });
-    });
+    // 通常項目に加えて、繰り返し行グループの定義（何行分あるかをAIに判断させるため）も渡す
     const payload = {
-      variables: [...uniqueNonGroupVars(t), ...groupMemberVars].map(v=>({ propName:v.propName, originalText:v.originalText })),
+      variables: uniqueNonGroupVars(t).map(v=>({ propName:v.propName, originalText:v.originalText })),
+      groups: (t.repeatGroups||[]).map(g=>({ id:g.id, label:g.label, memberPropNames:g.memberPropNames })),
       source: m.source
     };
     if(m.image){
       payload.imageBase64 = m.image.base64;
       payload.imageMime = m.image.mime;
     }
-    const { values } = await callAI('extractValues', payload);
+    const { values, groupEntries } = await callAI('extractValues', payload);
     if(values){
       uniqueNonGroupVars(t).forEach(v=>{
         if(values[v.propName] !== undefined && values[v.propName] !== '') m.values[v.propName]=values[v.propName];
       });
+    }
+    // 繰り返し行：AIが「何件あるか」を判断して返した件数ぶん、行を追加してから埋める
+    // （例：担当者が2名見つかれば、1つの行に2人分詰め込むのではなく、行を2つに増やす）
+    // 既に手入力済みの値は上書きしない。
+    if(groupEntries){
       (t.repeatGroups||[]).forEach(g=>{
-        const entries=m.values.__groups[g.id];
-        if(!entries || !entries.length) return;
-        g.memberPropNames.forEach(p=>{
-          if(values[p] !== undefined && values[p] !== '' && !entries[0][p]) entries[0][p]=values[p];
+        const aiEntries=groupEntries[g.id];
+        if(!Array.isArray(aiEntries) || !aiEntries.length) return;
+        const current=m.values.__groups[g.id];
+        while(current.length<aiEntries.length){
+          current.push(Object.fromEntries(g.memberPropNames.map(p=>[p,''])));
+        }
+        aiEntries.forEach((entryObj,i)=>{
+          const target=current[i];
+          if(!target) return;
+          g.memberPropNames.forEach(p=>{
+            const aiVal=(entryObj && entryObj[p]) || '';
+            if(aiVal && !target[p]) target[p]=aiVal;
+          });
         });
       });
     }
