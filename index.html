@@ -408,7 +408,8 @@ function render(view, arg){
   app.classList.toggle('wrap', view!=='home');
   app.innerHTML='';
   ({ home:viewHome, templates:viewTemplates,
-     templateNew:viewTemplateNew, history:viewHistory, aiSettings:viewAiSettings }[view]||viewHome)(app, arg);
+     templateNew:viewTemplateNew, history:viewHistory, aiSettings:viewAiSettings,
+     aiNewFormat:viewAiNewFormat }[view]||viewHome)(app, arg);
 }
 /* ============================================================
    画面：AI設定（常に考慮すべき事項の既定文を保存し、AI自動入力にのみ付与する）
@@ -567,13 +568,31 @@ function renderMakeWorkarea(){
   if(!box) return;
   const m=state.make;
   if(!m || !m.template){
-    box.innerHTML=`<div class="empty" style="padding:70px 20px">← 左のフォーマット一覧から契約書のフォーマットを選択してください。</div>`;
+    box.innerHTML=`
+      <div style="padding:60px 20px;text-align:center">
+        <h2 style="margin:0 0 6px;font-size:19px">契約書を作成</h2>
+        <p class="hint" style="margin:0 0 26px">まずは作り方を選んでください。</p>
+        <div class="row" style="justify-content:center;gap:16px;flex-wrap:wrap;align-items:stretch">
+          <div class="card" style="width:290px;text-align:left">
+            <h3 style="margin:0 0 6px;font-size:15px;display:flex;align-items:center;gap:6px">${icon('folder',16)} 既存フォーマットから作る</h3>
+            <p class="hint" style="margin:0">左の「フォーマット一覧」から使いたいフォーマットを選択してください。</p>
+          </div>
+          <div class="card" style="width:290px;text-align:left;border-color:var(--brand)">
+            <h3 style="margin:0 0 6px;font-size:15px;display:flex;align-items:center;gap:6px">${icon('sparkles',16)} 新規フォーマットから作る</h3>
+            <p class="hint" style="margin:0 0 14px">フォーマットの認識・可変部分の特定・会社情報の検索・書類の作成までをAIが自動で行います。</p>
+            <button class="btn accent sm" id="startAiNewBtn">${icon('sparkles',14)} AIで自動作成を始める</button>
+          </div>
+        </div>
+      </div>`;
+    const startBtn=document.getElementById('startAiNewBtn');
+    if(startBtn) startBtn.onclick=startAiNewFlow;
     return;
   }
   const t=m.template;
   const showPreview=!!m.showPreview;
   box.innerHTML=`
     <div>
+      <button type="button" id="backToPickerBtn" class="link-btn" style="margin:0 0 8px 8px;padding:0">← 別の作り方を選ぶ</button>
       <h2 style="margin:0 0 10px 8px;font-size:18px">${esc(t.name)}</h2>
       <div class="row" style="gap:8px">
         <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
@@ -602,6 +621,8 @@ function renderMakeWorkarea(){
   const clearBtn=document.getElementById('clearInputsBtn');
   if(clearBtn) clearBtn.onclick=clearMakeInputs;
   document.getElementById('togglePreviewBtn').onclick=toggleMakePreview;
+  const backBtn=document.getElementById('backToPickerBtn');
+  if(backBtn) backBtn.onclick=backToFormatPicker;
   if(showPreview){
     attachHResizer(document.getElementById('previewResizer'), document.getElementById('makePreviewPane'), {
       min:280, max:900, storageKey:'previewWidth', invert:true,
@@ -623,6 +644,15 @@ function renderMakeWorkarea(){
 async function toggleMakePreview(){
   const m=state.make;
   m.showPreview=!m.showPreview;
+  renderMakeWorkarea();
+}
+// 冒頭の「既存フォーマットから作る／新規フォーマットから作る」の選択画面に戻る
+function backToFormatPicker(){
+  const m=state.make;
+  const hasInput = m && ( Object.keys(m.values||{}).some(k=>k!=='__groups' && m.values[k]) || (m.source && m.source.trim()) || m.image || m.outputFilename );
+  if(hasInput && !confirm('入力中の内容は失われます。別の作り方を選ぶ画面に戻りますか？')) return;
+  state.make=null;
+  renderSideTplList();
   renderMakeWorkarea();
 }
 /* ---- 作成画面の書面プレビュー：テンプレートのファイルからHTMLを生成し、各マスクをハイライトできるようにする ---- */
@@ -1329,6 +1359,16 @@ function tryAddDocxMaskFromSelection(){
 function previewFullText(root){
   const walker=document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let s='', n; while((n=walker.nextNode())) s+=n.nodeValue; return s;
+}
+// previewFullTextと同じ内容だが、段落・表の行・<br>の区切りに改行(\n)を挿入したテキストを作る。
+// 通常のpreviewFullTextは改行の情報を持たない（段落や行がそのまま1本につながってしまう）ため、
+// 「同じ行の中で連続しているか、改行を挟んでいるか」をAIに判断させたい場面（AIによる自動マスク）
+// でのみ、こちらを使う。位置特定（allIndexOf等）には従来通りpreviewFullTextを使うこと。
+function previewFullTextWithBreaks(root){
+  const clone=root.cloneNode(true);
+  clone.querySelectorAll('br').forEach(br=>br.replaceWith('\n'));
+  clone.querySelectorAll('p, tr, li').forEach(el=>{ el.appendChild(document.createTextNode('\n')); });
+  return clone.textContent;
 }
 // 選択開始位置をプレビュー全体の文字オフセットに変換
 function globalStartOffset(root, range){
@@ -2480,8 +2520,9 @@ async function aiAutoMask(){
     if(d.fileType==='docx'){
       loading(true, 'AIが本文から可変部分を検出中…');
       const body=document.getElementById('previewBody');
-      const full=previewFullText(body);
-      const { variables, error } = await callAI('suggestVariables', { fileType:'docx', fullText: full });
+      const full=previewFullText(body); // 位置特定用（従来通り、改行マーカーなし）
+      const textForAi=previewFullTextWithBreaks(body); // AIに渡す用（改行の位置が分かるようにする）
+      const { variables, error } = await callAI('suggestVariables', { fileType:'docx', fullText: textForAi });
       if (error) throw new Error(error);
       loading(false);
       addAutoDetectedDocxVars(variables||[], full);
@@ -2658,6 +2699,191 @@ function saveTemplate(){
     toast('フォーマットを保存しました');
   }
   go('templates');
+}
+/* ============================================================
+   新規フォーマットから作る（AIによる一括自動作成）
+   ------------------------------------------------------------
+   ①ひな形ファイルをアップロード → 自動でAIマスク（可変部分の検出）
+   ②情報ソースを入力 → AIが値を抽出し、会社名っぽい項目は自動でgBizINFO検索
+   ③「作成」画面へ、この場限りのフォーマット（未保存）を選択した状態で渡す
+   ④出力時に、次回以降も使えるようフォーマットとして保存するか確認する
+============================================================ */
+function startAiNewFlow(){
+  state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], repeatGroups:[], groupSelection:[], maskMode:'add', editId:null, source:'', image:null };
+  go('aiNewFormat');
+}
+function viewAiNewFormat(app){
+  const d=state.draft;
+  app.innerHTML = `
+    <div class="page-head">
+      <h1>新規フォーマットからAIで自動作成</h1>
+    </div>
+    <p class="hint" style="margin:0 0 18px;max-width:640px">
+      契約書のひな形ファイルと、契約内容が書かれた情報源（メール文面など）を用意してください。
+      フォーマットの認識・可変部分の特定・会社情報の検索・書類の作成までをAIが自動で行います。
+    </p>
+    <div class="field" style="max-width:520px">
+      <label class="lbl section-heading">フォーマット名（省略可・未入力ならファイル名を使用）</label>
+      <input type="text" id="aiNewName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
+    </div>
+    <div id="aiNewUploadArea" ${d.fileBase64?'style="display:none"':''}>
+      <label class="lbl">ひな形ファイル（Word .docx / Excel .xlsx）</label>
+      <div class="dropzone" id="aiNewDrop">
+        <div class="big" style="display:grid;place-items:center;margin-bottom:6px">${icon('uploadArrow',28)}</div>
+        <div>クリックまたはドラッグ＆ドロップでアップロード</div>
+        <div class="hint">.docx / .xlsx に対応</div>
+      </div>
+      <input type="file" id="aiNewFileInput" accept=".docx,.xlsx" style="display:none">
+    </div>
+    <div id="maskArea" style="display:none;margin-top:24px"></div>
+    <div id="aiNewSourceArea" style="display:none;margin-top:24px;max-width:640px">
+      <div class="field">
+        <label class="lbl section-heading">情報ソース</label>
+        <textarea id="aiNewSource" placeholder="契約内容が書かれた文章（メール・LINE等）を貼り付けてください">${esc(d.source||'')}</textarea>
+      </div>
+      <div class="row end" style="margin-top:10px">
+        <button class="btn ghost" onclick="go('home')">キャンセル</button>
+        <button class="btn" id="aiNewRunBtn">${icon('sparkles',15)} AIで自動作成する</button>
+      </div>
+    </div>
+  `;
+  document.getElementById('aiNewName').oninput=e=>d.name=e.target.value;
+  const fireFile=async f=>{
+    if(!f) return;
+    if(!_gasPassword){ AuthGate.show(); return; }
+    await handleTemplateFile(f); // 既存のアップロード処理を流用（プレビュー生成・項目設定エリアの表示まで行う）
+    const ua=document.getElementById('aiNewUploadArea'); if(ua) ua.style.display='none';
+    // アップロード直後に自動でAIマスク（可変部分の検出）を実行する（ボタンを押す必要はない）
+    await aiAutoMask();
+    const sa=document.getElementById('aiNewSourceArea'); if(sa) sa.style.display='block';
+  };
+  const drop=document.getElementById('aiNewDrop');
+  const fi=document.getElementById('aiNewFileInput');
+  if(drop && fi){
+    fi.onchange=e=>fireFile(e.target.files[0]);
+    drop.onclick=()=>fi.click();
+    drop.ondragover=e=>{e.preventDefault();drop.classList.add('drag');};
+    drop.ondragleave=()=>drop.classList.remove('drag');
+    drop.ondrop=e=>{e.preventDefault();drop.classList.remove('drag'); fireFile(e.dataTransfer.files[0]);};
+  }
+  if(d.fileBase64){
+    buildMaskArea();
+    const sa=document.getElementById('aiNewSourceArea'); if(sa) sa.style.display='block';
+  }
+  const srcArea=document.getElementById('aiNewSource');
+  if(srcArea) srcArea.oninput=e=>d.source=e.target.value;
+  const runBtn=document.getElementById('aiNewRunBtn');
+  if(runBtn) runBtn.onclick=runAiNewFlow;
+}
+// ドラフト（アップロード直後の状態）から、保存前の一時的なフォーマットオブジェクトを組み立てる
+// （saveTemplate()が作るレコードと同じ形にする。__unsavedは、まだ保存されていないことの目印）
+function buildTempTemplateFromDraft(d){
+  return {
+    id: uid(),
+    name: d.name.trim() || (d.fileType==='docx' ? 'AIで作成したフォーマット（Word）' : 'AIで作成したフォーマット（Excel）'),
+    fileType: d.fileType, fileBase64: d.fileBase64,
+    variables: d.variables.map(v=>({ propName:v.propName.trim(), originalText:v.originalText, occurrence:(v.occurrence??null), sheet:v.sheet||null, addr:v.addr||null,
+      repeatGroupId:v.repeatGroupId||null, repeatRole:v.repeatRole||null, sortOrder:computeVarSortKey(v) })),
+    repeatGroups:(d.repeatGroups||[]).map(g=>{
+      const anchor=(g.anchorKey && d.variables.find(x=>x.key===g.anchorKey)) || d.variables.find(x=>x.repeatGroupId===g.id);
+      return { ...g, sortOrder: anchor?computeVarSortKey(anchor):Number.MAX_SAFE_INTEGER };
+    }),
+    __unsaved: true
+  };
+}
+// 会社名っぽい項目（looksLikeCompanyNameField）で値が入っているものについて、
+// gBizINFO（優先）→AI検索の順で自動的に法人情報を調べ、住所・代表者の関連項目にも反映する。
+// 「会社情報AI検索」ボタンを手動で押す代わりに、この一括作成フローの中で自動的に行う。
+async function autoLookupCompaniesForDraft(d, values){
+  const companyVars=uniqueNonGroupVars(d).filter(v=>looksLikeCompanyNameField(v.propName));
+  for(const v of companyVars){
+    const companyName=(values[v.propName]||'').trim();
+    if(!companyName) continue;
+    try{
+      const result=await callAI('lookupCompany', { companyName });
+      if(result && result.found && result.candidates && result.candidates.length){
+        const c=result.candidates[0];
+        if(c.name) values[v.propName]=c.name;
+        const addrField=findRelatedField(d, v.propName, looksLikeAddressField);
+        if(addrField && c.address) values[addrField.propName]=c.address;
+        const repField=findRelatedField(d, v.propName, looksLikeRepresentativeField);
+        if(repField && c.representative) values[repField.propName]=c.representative;
+      }
+    }catch(e){ /* 1件の検索に失敗しても、他の項目の処理は続行する */ }
+  }
+}
+async function runAiNewFlow(){
+  if(!_gasPassword){ AuthGate.show(); return; }
+  const d=state.draft;
+  if(!d.fileBase64){ toast('先にひな形ファイルをアップロードしてください', true); return; }
+  if(!d.variables.length){ toast('可変部分が検出されていません。左のプレビューでマスクを追加してください', true); return; }
+  const emptyName=d.variables.filter(v=>!v.propName.trim());
+  if(emptyName.length){ toast('項目名が未設定の変数があります。項目名を入力してください', true); return; }
+  const source=(d.source||'').trim();
+  if(!source){ toast('情報ソースを入力してください', true); return; }
+  try{
+    loading(true, 'AIが情報を解析中…');
+    const today=new Date();
+    const todayDate=`${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
+    const payload={
+      variables: uniqueNonGroupVars(d).map(v=>({ propName:v.propName, originalText:v.originalText })),
+      groups: (d.repeatGroups||[]).map(g=>({ id:g.id, label:g.label, memberPropNames:g.memberPropNames })),
+      source, todayDate
+    };
+    const { values:standaloneValues, groupEntries } = await callAI('extractValues', payload);
+    const values={};
+    uniqueNonGroupVars(d).forEach(v=>{ values[v.propName]=(standaloneValues && standaloneValues[v.propName]) || ''; });
+    values.__groups={};
+    (d.repeatGroups||[]).forEach(g=>{
+      const aiEntries=groupEntries && groupEntries[g.id];
+      values.__groups[g.id]=(Array.isArray(aiEntries) && aiEntries.length)
+        ? aiEntries.map(entryObj=>{ const e={}; g.memberPropNames.forEach(p=>{ e[p]=(entryObj&&entryObj[p])||''; }); return e; })
+        : [Object.fromEntries(g.memberPropNames.map(p=>[p,'']))];
+    });
+    syncSharedValuesAfterAIFill(d, { values });
+
+    loading(true, 'AIが会社情報を検索中…');
+    await autoLookupCompaniesForDraft(d, values);
+
+    loading(false);
+    const tempTemplate=buildTempTemplateFromDraft(d);
+    state.make={ template:tempTemplate, mode:'manual', values, source:'', image:null, showPreview:false };
+    go('home');
+    renderSideTplList();
+    renderMakeWorkarea();
+    toast('AIによる自動作成が完了しました。内容をご確認ください。');
+  }catch(e){ loading(false); toast('自動作成に失敗しました: '+e.message, true); }
+}
+// 出力完了後、AIで自動作成した（まだ保存されていない）フォーマットを、次回以降も使えるように
+// 保存するかどうかを確認する。「保存しない」を選んでも、そのセッション中は再度聞かれない。
+function maybeSaveAiGeneratedTemplate(t){
+  return new Promise(resolve=>{
+    const bd=document.getElementById('backdrop');
+    bd.innerHTML=`
+      <div class="modal" style="max-width:440px">
+        <div class="modal-head"><h2>フォーマットの保存</h2><p class="hint" style="margin:4px 0 0">
+          今回AIが自動で作成したフォーマット「${esc(t.name)}」を、次回以降も使えるように保存しますか？
+        </p></div>
+        <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+          <button class="btn ghost" id="saveAiTplYes" style="justify-content:flex-start">${icon('checkCircle',15)} 保存する</button>
+          <button class="btn ghost" id="saveAiTplNo" style="justify-content:flex-start">保存しない（今回限り）</button>
+        </div>
+      </div>`;
+    bd.classList.add('show');
+    function finish(){ bd.classList.remove('show'); resolve(); }
+    document.getElementById('saveAiTplYes').onclick=()=>{
+      state.templates.push({ id:t.id, name:t.name, fileType:t.fileType, fileBase64:t.fileBase64, variables:t.variables, repeatGroups:t.repeatGroups });
+      saveTemplates();
+      renderSideTplList();
+      delete t.__unsaved;
+      toast('フォーマットを保存しました');
+      finish();
+    };
+    document.getElementById('saveAiTplNo').onclick=()=>{
+      delete t.__unsaved; // このセッション中は再度聞かない
+      finish();
+    };
+  });
 }
 /* ============================================================
    契約書作成：入力方法の切り替え（右の作業エリアのみ再描画）
@@ -3177,7 +3403,8 @@ function openConfirm(){
     }
     const finalFilename = sanitizeFilename(m.outputFilename || t.name);
     bd.classList.remove('show'); 
-    await generateOutput(finalFilename); 
+    await generateOutput(finalFilename);
+    if(t.__unsaved) await maybeSaveAiGeneratedTemplate(t);
     renderMakeFormFields(); 
   };
   // AIにログイン済みの場合のみ、入力済み内容からファイル名を自動生成する（未認証時は何もしない＝従来どおり）
