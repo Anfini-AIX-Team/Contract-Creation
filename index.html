@@ -2685,10 +2685,15 @@ async function analyzeSource(){
     loading(true, 'AIが情報を解析して入力中…');
     ensureGroupValues(m);
     // 通常項目に加えて、繰り返し行グループの定義（何行分あるかをAIに判断させるため）も渡す
+    // todayDate: 情報ソース中の「今日」「本日」等の相対的な日付表現をAIが実際の日付に
+    // 変換できるよう、クライアント側の実際の日付（この端末のタイムゾーン基準）を渡す。
+    const today=new Date();
+    const todayDate=`${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
     const payload = {
       variables: uniqueNonGroupVars(t).map(v=>({ propName:v.propName, originalText:v.originalText })),
       groups: (t.repeatGroups||[]).map(g=>({ id:g.id, label:g.label, memberPropNames:g.memberPropNames })),
-      source: m.source
+      source: m.source,
+      todayDate
     };
     if(m.image){
       payload.imageBase64 = m.image.base64;
