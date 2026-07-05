@@ -133,12 +133,17 @@
   .docx-preview.mode-add{cursor:text}
   .docx-preview.mode-erase .mask{cursor:pointer;outline:1px dashed var(--danger);outline-offset:1px}
   .docx-preview.mode-erase .mask:hover{background:#fbeae8;border-bottom-color:var(--danger)}
+  .docx-preview.mode-select .mask{cursor:pointer}
+  .docx-preview.mode-select .mask:hover{outline:1px dashed var(--success);outline-offset:1px}
+  .mask.mask-checked{outline:2px solid var(--success);outline-offset:1px}
   .xlsx-preview{padding:14px;max-height:520px;overflow:auto}
   .xlsx-preview .sheetname{font-size:12px;font-weight:700;color:var(--muted);margin:10px 4px 4px;text-transform:uppercase;letter-spacing:.04em}
   .xlsx-preview table{border-collapse:collapse;font-size:13px}
   .xlsx-preview td{border:1px solid var(--line);padding:3px 8px;min-width:46px;max-width:220px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
   .xlsx-preview td:empty{min-height:20px}
   .xlsx-preview td.picked{background:var(--mask);outline:2px solid var(--mask-line);outline-offset:-2px}
+  .xlsx-preview td.picked.mask-selected{outline:2px solid var(--brand);outline-offset:-2px}
+  .xlsx-preview td.picked.mask-checked{outline:2px solid var(--success);outline-offset:-2px}
   .xlsx-preview td:hover{background:var(--brand-soft)}
   .var-list{display:flex;flex-direction:column;gap:10px;max-height:520px;overflow:auto;padding-right:4px}
   .var-item{border:1px solid var(--line);border-radius:12px;padding:12px;background:#fff;display:flex;gap:10px;align-items:flex-start;transition:box-shadow .15s, border-color .15s}
@@ -304,7 +309,13 @@ function icon(name, size){
     x: '<line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line>',
     lock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path>',
     unlock: '<rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 9.9-1"></path>',
-    xCircle: '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>'
+    xCircle: '<circle cx="12" cy="12" r="10"></circle><line x1="15" y1="9" x2="9" y2="15"></line><line x1="9" y1="9" x2="15" y2="15"></line>',
+    chevronRight: '<polyline points="9 18 15 12 9 6"></polyline>',
+    link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>',
+    checkSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
+    eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',
+    arrowUp: '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
+    arrowDown: '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>'
   };
   return `<svg width="${size}" height="${size}" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;flex:none">${paths[name]||''}</svg>`;
 }
@@ -426,11 +437,13 @@ function renderMakeWorkarea(){
     return;
   }
   const t=m.template;
+  const showPreview=!!m.showPreview;
   box.innerHTML=`
     <div class="row" style="justify-content:space-between;align-items:center">
       <h2 style="margin:0 0 0 8px;font-size:18px">${esc(t.name)}</h2>
       <div class="row" style="gap:8px">
         <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
+        <button class="btn ghost sm" id="togglePreviewBtn">${icon('eye',14)} ${showPreview?'書面プレビューを隠す':'書面プレビューを表示'}</button>
         <button class="btn ghost sm" id="clearInputsBtn" title="入力内容をクリア">${icon('trash',14)} 入力内容をクリア</button>
       </div>
     </div>
@@ -439,12 +452,106 @@ function renderMakeWorkarea(){
       <button class="${m.mode==='auto'?'on':''}" onclick="switchMode('auto')">${icon('sparkles',14)} AI自動入力</button>
     </div>
     <div id="autoBox"></div>
-    <div id="formBox"></div>
+    <div class="${showPreview?'split':''}" style="margin-top:0">
+      <div id="formBox"></div>
+      ${showPreview?`
+      <div class="preview-pane" style="position:sticky;top:12px">
+        <div class="pane-head">
+          <span class="t">書面プレビュー</span>
+          <div class="hint" style="margin:0 0 0 8px">入力欄をクリックすると該当箇所が分かります</div>
+        </div>
+        <div id="makePreviewBody" class="docx-preview" style="max-height:75vh;overflow-y:auto"></div>
+      </div>`:''}
+    </div>
   `;
   const clearBtn=document.getElementById('clearInputsBtn');
   if(clearBtn) clearBtn.onclick=clearMakeInputs;
+  document.getElementById('togglePreviewBtn').onclick=toggleMakePreview;
   if(m.mode==='auto') renderAutoBox();
   renderMakeFormFields();
+  if(showPreview) renderMakePreview();
+}
+/* ---- 書面プレビューの表示/非表示を切り替える ---- */
+async function toggleMakePreview(){
+  const m=state.make;
+  m.showPreview=!m.showPreview;
+  renderMakeWorkarea();
+}
+/* ---- 作成画面の書面プレビュー：テンプレートのファイルからHTMLを生成し、各マスクをハイライトできるようにする ---- */
+async function renderMakePreview(){
+  const m=state.make, t=m.template;
+  const body=document.getElementById('makePreviewBody');
+  if(!body) return;
+  if(t.fileType!=='docx'){
+    body.innerHTML='<div class="hint" style="padding:12px">Excel形式のフォーマットはプレビュー表示に対応していません。</div>';
+    return;
+  }
+  try{
+    if(m.previewHtml==null){
+      body.innerHTML='<div class="hint" style="padding:12px">読み込み中…</div>';
+      const ab=base64ToAb(t.fileBase64);
+      const res=await mammoth.convertToHtml({arrayBuffer:ab});
+      m.previewHtml=res.value;
+    }
+    body.innerHTML=m.previewHtml;
+    markMakePreviewMasks(t, body);
+  }catch(e){
+    body.innerHTML='<div class="hint" style="padding:12px">プレビューの生成に失敗しました。</div>';
+  }
+}
+// プレビュー本文中のマスク該当箇所を <span class="mask" data-prop="項目名"> で包む（読み取り専用のハイライト表示用）
+function markMakePreviewMasks(t, body){
+  const walker=document.createTreeWalker(body, NodeFilter.SHOW_TEXT);
+  const nodes=[]; let n; while((n=walker.nextNode())) nodes.push(n);
+  const starts=[]; let acc=0;
+  nodes.forEach(nd=>{ starts.push(acc); acc+=nd.nodeValue.length; });
+  const full=nodes.map(nd=>nd.nodeValue).join('');
+  const pieceMap=new Map();
+  t.variables.forEach(v=>{
+    const positions=allIndexOf(full, v.originalText);
+    const occ=(v.occurrence!=null?v.occurrence:0);
+    const start=positions[occ];
+    if(start==null) return;
+    const end=start+v.originalText.length;
+    for(let i=0;i<nodes.length;i++){
+      const ns=starts[i], ne=ns+nodes[i].nodeValue.length;
+      const s=Math.max(start,ns), e=Math.min(end,ne);
+      if(s<e){
+        if(!pieceMap.has(nodes[i])) pieceMap.set(nodes[i],[]);
+        pieceMap.get(nodes[i]).push({s:s-ns,e:e-ns,prop:v.propName});
+      }
+    }
+  });
+  pieceMap.forEach((pieces,node)=>{
+    pieces.sort((a,b)=>a.s-b.s);
+    const parent=node.parentNode; if(!parent) return;
+    const text=node.nodeValue;
+    let cursor=0;
+    const frag=document.createDocumentFragment();
+    pieces.forEach(p=>{
+      if(p.s>cursor) frag.appendChild(document.createTextNode(text.slice(cursor,p.s)));
+      const span=document.createElement('span');
+      span.className='mask';
+      span.dataset.prop=p.prop;
+      span.textContent=text.slice(p.s,p.e);
+      frag.appendChild(span);
+      cursor=p.e;
+    });
+    if(cursor<text.length) frag.appendChild(document.createTextNode(text.slice(cursor)));
+    parent.replaceChild(frag, node);
+  });
+}
+// 入力欄にフォーカスしたとき、プレビュー側の該当マスクをハイライト＆スクロールする
+function highlightMakePreviewForProp(propName){
+  const body=document.getElementById('makePreviewBody');
+  if(!body) return;
+  let matched=null;
+  body.querySelectorAll('.mask').forEach(el=>{
+    const on = el.dataset.prop===propName;
+    el.classList.toggle('mask-selected', on);
+    if(on && !matched) matched=el;
+  });
+  if(matched) matched.scrollIntoView({block:'center', behavior:'smooth'});
 }
 /* ---- 入力内容をクリア：現在選択中フォーマットの入力値・AIソース・画像をすべてリセット ---- */
 function clearMakeInputs(){
@@ -709,7 +816,8 @@ function buildMaskArea(){
           <span class="t">${d.fileType==='docx'?'文書プレビュー':'シートプレビュー'}</span>
           <div class="top-spacer" style="flex:1"></div>
           <div class="mask-toggle" id="maskToggle">
-            <button data-mode="add" class="${d.maskMode==='erase'?'':'on'}">${icon('pencil',14)} 追加</button>
+            <button data-mode="add" class="${d.maskMode==='add'?'on':''}">${icon('pencil',14)} 追加</button>
+            <button data-mode="select" class="${d.maskMode==='select'?'on':''}">${icon('checkSquare',14)} 選択</button>
             <button data-mode="erase" class="erase ${d.maskMode==='erase'?'on':''}">${icon('eraser',14)} 除去</button>
           </div>
           <button class="btn sm accent" id="autoDetectBtn" style="margin-left:8px">${icon('sparkles',14)} AIで自動マスク</button>
@@ -753,10 +861,11 @@ function buildMaskArea(){
       // 選択解除直後の誤発火を避けるため少し遅延
       setTimeout(()=>{ tryAddDocxMaskFromSelection(); },0);
     });
-    // 消しゴムモード：マスクをクリックで除去／追加モード：クリックで右の一覧を選択
+    // 消しゴムモード：マスクをクリックで除去／選択モード：クリックでチェックON-OFF／追加モード：クリックで右の一覧を選択
     body.addEventListener('click',e=>{
       const m=e.target.closest('.mask'); if(!m) return;
       if(state.draft.maskMode==='erase') removeVar(m.dataset.key);
+      else if(state.draft.maskMode==='select') toggleGroupSelectionForKey(m.dataset.key);
       else selectVariableInList(m.dataset.key);
     });
   }else{
@@ -770,7 +879,7 @@ function buildMaskArea(){
 }
 /* ---- マスクモード（鉛筆＝追加 / 消しゴム＝除去）---- */
 function setMaskMode(mode){
-  state.draft.maskMode = (mode==='erase') ? 'erase' : 'add';
+  state.draft.maskMode = (mode==='erase'||mode==='select') ? mode : 'add';
   applyMaskModeUI();
 }
 function applyMaskModeUI(){
@@ -785,16 +894,22 @@ function applyMaskModeUI(){
   if(body && d.fileType==='docx'){
     body.classList.toggle('mode-add', d.maskMode==='add');
     body.classList.toggle('mode-erase', d.maskMode==='erase');
+    body.classList.toggle('mode-select', d.maskMode==='select');
   }
+  applyGroupSelectionClassesToPreview();
   const help=document.getElementById('maskHelp');
   if(help){
     if(d.fileType==='docx'){
       help.textContent = d.maskMode==='erase'
         ? '除去モード：黄色いマスクをクリックすると解除します。'
+        : d.maskMode==='select'
+        ? '選択モード：マスクをクリックしてチェックを付けます（行グループ化や同じ値としての結合に使えます）。'
         : '追加モード：置き換えたい文字をドラッグで選択するとマスクされます。';
     }else{
       help.textContent = d.maskMode==='erase'
         ? '除去モード：マスク済み（黄色）のセルをクリックで解除します。'
+        : d.maskMode==='select'
+        ? '選択モード：マスク済みのセルをクリックしてチェックを付けます（同じ値としての結合に使えます）。'
         : '追加モード：可変にしたいセルをクリックするとマスクされます。';
     }
     help.style.marginTop = '12px';
@@ -982,14 +1097,15 @@ function previewRangeOfNode(el, map){
    左プレビュー（mammoth変換後のHTML）とファイル本体（生のdocument.xml）の
    テキスト表現の違いに影響されないよう、occurrenceの再計算は必ず
    「今表示されているプレビューのテキスト」を基準に行う。 */
-async function createRowGroup(memberPropNames){
+async function createRowGroup(memberKeys){
   const d=state.draft;
-  if(!memberPropNames || !memberPropNames.length) return;
-  const first=d.variables.find(v=>v.propName===memberPropNames[0]);
-  if(!first){ toast('項目が見つかりません', true); return; }
+  if(!memberKeys || !memberKeys.length) return;
+  const memberVars=memberKeys.map(k=>d.variables.find(v=>v.key===k)).filter(Boolean);
+  if(!memberVars.length){ toast('項目が見つかりません', true); return; }
+  const first=memberVars[0];
   const previewBody=document.getElementById('previewBody');
   if(!previewBody){ toast('プレビューが見つかりません', true); return; }
-  const label=(prompt('この繰り返し行の名前を入力してください（例：業務担当者）', memberPropNames[0])||'').trim() || memberPropNames[0];
+  const label=(prompt('この繰り返し行の名前を入力してください（例：業務担当者）', first.propName)||'').trim() || first.propName;
   try{
     loading(true, '行を複製できるように整えています…');
 
@@ -1006,7 +1122,7 @@ async function createRowGroup(memberPropNames){
       .filter(Boolean)
       .sort((a,b)=>a[0]-b[0]);
 
-    // 2) 今の時点での各変数のプレビュー内位置を記録しておく（docxのマスク変数のみ対象）
+    // 2) 今の時点での各変数のプレビュー内位置を記録しておく（docxのマスク変数のみ対象、キー単位で管理）
     const oldPositions={};
     d.variables.forEach(v=>{
       if(v.addr) return;
@@ -1035,8 +1151,9 @@ async function createRowGroup(memberPropNames){
     const mapNew=previewTextMap(tmp);
     document.body.removeChild(tmp);
 
-    // 5) 削除された行ぶんの文字数を差し引いて、各変数の新しい occurrence を求める
+    // 5) 削除された行ぶんの文字数を差し引いて、各変数の新しい occurrence を求める（キーで対象を特定）
     const dropped=[];
+    const memberKeySet=new Set(memberKeys);
     const recompute=(v)=>{
       const oldPos=oldPositions[v.key];
       if(oldPos==null){ dropped.push(v.propName); return; }
@@ -1049,17 +1166,14 @@ async function createRowGroup(memberPropNames){
     };
     d.variables.forEach(v=>{
       if(v.addr) return;
-      if(memberPropNames.includes(v.propName)) return; // メンバーは後でまとめて処理する
+      if(memberKeySet.has(v.key)) return; // メンバーは後でまとめて処理する
       recompute(v);
     });
-    memberPropNames.forEach(p=>recompute(d.variables.find(x=>x.propName===p)));
+    memberVars.forEach(recompute);
 
     const groupId=uid();
-    memberPropNames.forEach(p=>{
-      const v=d.variables.find(x=>x.propName===p);
-      v.repeatGroupId=groupId; v.repeatRole='member';
-    });
-    d.repeatGroups.push({ id:groupId, kind:'row', label, memberPropNames:[...memberPropNames] });
+    memberVars.forEach(v=>{ v.repeatGroupId=groupId; v.repeatRole='member'; });
+    d.repeatGroups.push({ id:groupId, kind:'row', label, memberPropNames:memberVars.map(v=>v.propName), anchorKey:first.key });
     d.groupSelection=[];
     loading(false);
     if(dropped.length) toast('注意: '+dropped.join('、')+' が例示行の削除に伴い無効になりました。再度マスクしてください。', true);
@@ -1107,6 +1221,11 @@ function toggleCell(sheet,addr,val,td){
     if(i>=0){ d.variables.splice(i,1); td.classList.remove('picked'); refreshVarList(); }
     return;
   }
+  if(mode==='select'){
+    // 選択モード：マスク済みのセルのみチェックのON/OFFを切り替える
+    if(i>=0) toggleGroupSelectionForKey(d.variables[i].key);
+    return;
+  }
   // 鉛筆（追加）：未マスクなら追加。既にマスク済みならその項目を選択状態にする。
   if(i<0){
     const v={ key:uid(), sheet, addr, originalText:val, propName:'' };
@@ -1115,6 +1234,17 @@ function toggleCell(sheet,addr,val,td){
   }else{
     selectVariableInList(d.variables[i].key);
   }
+}
+/* ---- 右の変数一覧側で編集を始めたとき、左の文書プレビュー側でも対応するマスクが分かるようにする ---- */
+function highlightPreviewForVar(key){
+  const d=state.draft;
+  d.selectedVarKey=key;
+  document.querySelectorAll('#previewBody .mask, #previewBody td.picked').forEach(el=>{
+    el.classList.toggle('mask-selected', el.dataset.key===key);
+  });
+  document.querySelectorAll('#varList .var-item').forEach(el=>el.classList.toggle('selected', el.dataset.key===key));
+  const maskEl=document.querySelector(`#previewBody .mask[data-key="${CSS.escape(key)}"], #previewBody td.picked[data-key="${CSS.escape(key)}"]`);
+  if(maskEl) maskEl.scrollIntoView({block:'center', behavior:'smooth'});
 }
 /* ---- プレビュー内のマスク／マスク済みセルをクリック → 右の一覧で該当項目を選択し、すぐ編集できるようにする ---- */
 function selectVariableInList(key){
@@ -1136,8 +1266,10 @@ function selectVariableInList(key){
 function removeVar(key){
   const d=state.draft;
   d.variables=d.variables.filter(v=>v.key!==key);
+  if(d.groupSelection) d.groupSelection=d.groupSelection.filter(k=>k!==key);
   if(d.fileType==='docx') renderDocxPreview(document.getElementById('previewBody'));
   else renderXlsxPreview(document.getElementById('previewBody'));
+  applyGroupSelectionClassesToPreview();
   refreshVarList();
 }
 /* マスクの「文書内での位置」を並び替えキーとして計算する（上から順に並べるため） */
@@ -1161,75 +1293,203 @@ function refreshVarList(){
   const list=document.getElementById('varList');
   if(!d.variables.length){ list.innerHTML='<div class="empty">左側でマスクした部分がここに並びます。</div>'; renderGroupToolbar(); return; }
   list.innerHTML='';
-  const ungrouped=d.variables.filter(v=>!v.repeatGroupId).sort((a,b)=>computeVarSortKey(a)-computeVarSortKey(b));
-  ungrouped.forEach(v=>{
-    const item=document.createElement('div'); item.className='var-item'; item.dataset.key=v.key;
-    const loc=v.addr?` <span style="color:var(--brand)">[${v.sheet}!${v.addr}]</span>`:'';
-    const canGroup = d.fileType==='docx' && !v.addr;
-    const checked = (d.groupSelection||[]).includes(v.propName);
-    item.innerHTML=`
-      <div class="var-item-body">
-        <div class="orig">元テキスト:${loc} <b>${esc(v.originalText.slice(0,60))}</b></div>
-        <div class="prop-row">
-          <input type="text" placeholder="項目名（例：甲の会社名）" value="${esc(v.propName)}">
-          <button class="icon-btn" title="削除">${icon('x',15)}</button>
-        </div>
+  d.expandedGroups=d.expandedGroups||new Set();
+
+  // 同じ項目名のヒント表示は、グループのメンバーも含めて数える（グループ内外での重複も許容するため）
+  const nameCounts={};
+  d.variables.forEach(v=>{ const n=v.propName.trim(); if(n) nameCounts[n]=(nameCounts[n]||0)+1; });
+
+  // グループの「位置」は、先頭メンバー（anchorKey。無ければグループ内の最初に見つかった変数）を基準にする
+  function groupAnchorVar(g){
+    if(g.anchorKey){ const v=d.variables.find(x=>x.key===g.anchorKey); if(v) return v; }
+    return d.variables.find(x=>x.repeatGroupId===g.id) || null;
+  }
+
+  const ungrouped=d.variables.filter(v=>!v.repeatGroupId);
+  const items=[
+    ...ungrouped.map(v=>({ type:'var', v, sortKey:computeVarSortKey(v) })),
+    ...(d.repeatGroups||[]).map(g=>{
+      const anchor=groupAnchorVar(g);
+      return { type:'group', g, sortKey: anchor?computeVarSortKey(anchor):Number.MAX_SAFE_INTEGER };
+    })
+  ].sort((a,b)=>a.sortKey-b.sortKey);
+
+  items.forEach(it=>{
+    if(it.type==='var') list.appendChild(buildVarItemEl(d, it.v, nameCounts));
+    else list.appendChild(buildGroupCardEl(d, it.g, nameCounts));
+  });
+
+  renderGroupToolbar();
+  refreshMaskTitles();
+}
+// 通常（未グループ）の1項目ぶんのDOM要素を作る
+function buildVarItemEl(d, v, nameCounts){
+  const item=document.createElement('div'); item.className='var-item'; item.dataset.key=v.key;
+  const loc=v.addr?` <span style="color:var(--brand)">[${v.sheet}!${v.addr}]</span>`:'';
+  const checked = (d.groupSelection||[]).includes(v.key);
+  const shareCount=nameCounts[v.propName.trim()]||0;
+  const shareHint = shareCount>1
+    ? `<div class="hint" style="margin:2px 0 0;color:var(--brand)">${icon('grip',12)} 同じ項目名が他に${shareCount-1}件あります（生成時は1つの入力にまとまります）</div>`
+    : '';
+  item.innerHTML=`
+    <div class="var-item-body">
+      <div class="orig">元テキスト:${loc} <b>${esc(v.originalText.slice(0,60))}</b></div>
+      <div class="prop-row">
+        <input type="text" placeholder="項目名（例：甲の会社名）" value="${esc(v.propName)}">
+        <button class="icon-btn" title="削除">${icon('x',15)}</button>
       </div>
-      <div class="grp-check-col" title="繰り返しグループに含める">
-        ${canGroup?`<input type="checkbox" class="grp-check" ${checked?'checked':''}>`:''}
-      </div>`;
-    item.querySelector('input[type=text]').oninput=e=>{ v.propName=e.target.value; refreshMaskTitles(); };
-    item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
-    const chk=item.querySelector('.grp-check');
-    if(chk){
+      ${shareHint}
+    </div>
+    <div class="grp-check-col" title="行グループ化／同じ値として結合する項目を選ぶ">
+      <input type="checkbox" class="grp-check" ${checked?'checked':''}>
+    </div>`;
+  item.querySelector('input[type=text]').oninput=e=>{ v.propName=e.target.value; refreshMaskTitles(); };
+  item.querySelector('input[type=text]').onfocus=()=>highlightPreviewForVar(v.key);
+  item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
+  const chk=item.querySelector('.grp-check');
+  chk.onchange=()=>{
+    d.groupSelection=d.groupSelection||[];
+    if(chk.checked){
+      if(!v.propName.trim()){ toast('先に項目名を入力してください', true); chk.checked=false; return; }
+      d.groupSelection.push(v.key);
+    }else{
+      d.groupSelection=d.groupSelection.filter(k=>k!==v.key);
+    }
+    onGroupSelectionChanged();
+  };
+  return item;
+}
+// 繰り返し行グループぶんのカードを作る（開くとメンバーを個別に編集できる）
+function buildGroupCardEl(d, g, nameCounts){
+  const card=document.createElement('div'); card.className='var-item group-card'; card.style.background='var(--brand-soft)';
+  const expanded=d.expandedGroups.has(g.id);
+  const members=g.memberPropNames.map(p=>d.variables.find(v=>v.repeatGroupId===g.id && v.propName===p)).filter(Boolean);
+  const head=document.createElement('div'); head.className='var-item-body';
+  head.innerHTML=`
+    <div class="orig" style="cursor:pointer;display:flex;align-items:center;gap:6px">
+      <span class="grp-toggle" style="display:inline-flex;transition:transform .15s;transform:rotate(${expanded?90:0}deg)">${icon('chevronRight',14)}</span>
+      繰り返し行: <b>${esc(g.label||'')}</b>
+    </div>
+    <div class="hint" style="margin:2px 0 8px">対象項目: ${esc(g.memberPropNames.join(' / '))}（${members.length}項目）</div>
+    <div class="grp-members" style="${expanded?'':'display:none'}"></div>
+    <div class="row end" style="margin:0"><button class="btn ghost sm grp-ungroup">グループ解除</button></div>`;
+  card.appendChild(head);
+  head.querySelector('.orig').onclick=()=>{
+    if(expanded) d.expandedGroups.delete(g.id); else d.expandedGroups.add(g.id);
+    refreshVarList();
+  };
+  head.querySelector('.grp-ungroup').onclick=()=>{
+    d.variables.forEach(v=>{ if(v.repeatGroupId===g.id){ v.repeatGroupId=null; v.repeatRole=null; } });
+    d.repeatGroups=d.repeatGroups.filter(x=>x.id!==g.id);
+    refreshVarList();
+  };
+  if(expanded){
+    const box=head.querySelector('.grp-members');
+    members.forEach(v=>{
+      const row=document.createElement('div'); row.className='grp-member-row'; row.dataset.key=v.key;
+      row.style.cssText='margin:6px 0;padding-top:6px;border-top:1px dashed var(--line);display:flex;gap:10px;align-items:flex-start';
+      const shareCount=nameCounts[v.propName.trim()]||0;
+      const shareHint = shareCount>1
+        ? `<div class="hint" style="margin:2px 0 0;color:var(--brand)">${icon('grip',12)} 同じ項目名が他に${shareCount-1}件あります（生成時は1つの入力にまとまります）</div>`
+        : '';
+      const checked=(d.groupSelection||[]).includes(v.key);
+      row.innerHTML=`
+        <div style="flex:1">
+          <div class="orig">元テキスト: <b>${esc(v.originalText.slice(0,60))}</b></div>
+          <div class="prop-row"><input type="text" value="${esc(v.propName)}" placeholder="項目名"></div>
+          ${shareHint}
+        </div>
+        <div class="grp-check-col" title="同じ値として結合する項目に選ぶ">
+          <input type="checkbox" class="grp-check" ${checked?'checked':''}>
+        </div>`;
+      const inp=row.querySelector('input[type=text]');
+      inp.onfocus=()=>highlightPreviewForVar(v.key);
+      inp.oninput=e=>{
+        const newName=e.target.value;
+        const idx=g.memberPropNames.indexOf(v.propName);
+        v.propName=newName;
+        if(idx>=0) g.memberPropNames[idx]=newName;
+        refreshMaskTitles();
+      };
+      const chk=row.querySelector('.grp-check');
       chk.onchange=()=>{
         d.groupSelection=d.groupSelection||[];
         if(chk.checked){
           if(!v.propName.trim()){ toast('先に項目名を入力してください', true); chk.checked=false; return; }
-          d.groupSelection.push(v.propName);
+          d.groupSelection.push(v.key);
         }else{
-          d.groupSelection=d.groupSelection.filter(p=>p!==v.propName);
+          d.groupSelection=d.groupSelection.filter(k=>k!==v.key);
         }
-        renderGroupToolbar();
+        onGroupSelectionChanged();
       };
-    }
-    list.appendChild(item);
-  });
-  // 既存の繰り返しグループカード
-  (d.repeatGroups||[]).forEach(g=>{
-    const card=document.createElement('div'); card.className='var-item'; card.style.background='var(--brand-soft)';
-    card.innerHTML=`
-      <div class="var-item-body">
-        <div class="orig">繰り返し行: <b>${esc(g.label||'')}</b></div>
-        <div class="hint" style="margin:0 0 8px">対象項目: ${esc(g.memberPropNames.join(' / '))}</div>
-        <div class="row end" style="margin:0"><button class="btn ghost sm">グループ解除</button></div>
-      </div>`;
-    card.querySelector('button').onclick=()=>{
-      d.variables.forEach(v=>{ if(v.repeatGroupId===g.id){ v.repeatGroupId=null; v.repeatRole=null; } });
-      d.repeatGroups=d.repeatGroups.filter(x=>x.id!==g.id);
-      refreshVarList();
-    };
-    list.appendChild(card);
-  });
-  renderGroupToolbar();
-  refreshMaskTitles();
+      box.appendChild(row);
+    });
+  }
+  return card;
 }
 /* ---- 繰り返しグループ作成ボタン（変数一覧ヘッダーの右上に表示） ---- */
 function renderGroupToolbar(){
   const d=state.draft;
   const box=document.getElementById('groupActions');
   if(!box) return;
-  const sel=d.groupSelection||[];
+  const sel=d.groupSelection||[]; // v.key の配列
   if(!sel.length){ box.innerHTML=''; return; }
-  box.innerHTML=`<button class="btn sm accent" id="mkRowGroupBtn" title="選択項目: ${esc(sel.join(' → '))}">行グループとして設定</button>`;
-  document.getElementById('mkRowGroupBtn').onclick=()=>{
+  const selVars=sel.map(k=>d.variables.find(v=>v.key===k)).filter(Boolean);
+  const canRowGroup = d.fileType==='docx' && selVars.length>=1 && selVars.every(v=>!v.addr && !v.repeatGroupId);
+  const canMerge = selVars.length>=2;
+  let html='';
+  if(canMerge){
+    html+=`<button class="btn sm ghost" id="mkSharedBtn" title="選択項目を同じ値として結合">${icon('link',14)} 同じ値として結合</button>`;
+  }
+  if(canRowGroup){
+    html+=`<button class="btn sm accent" id="mkRowGroupBtn" title="選択項目: ${esc(selVars.map(v=>v.propName).join(' → '))}">行グループとして設定</button>`;
+  }
+  box.innerHTML=html;
+  const sb=document.getElementById('mkSharedBtn');
+  if(sb) sb.onclick=()=>mergeAsSharedValue(sel);
+  const rb=document.getElementById('mkRowGroupBtn');
+  if(rb) rb.onclick=()=>{
     // 行内の左→右の順で複製されるよう、文書内の位置順に並べ替えてから確定する
-    const ordered=[...sel].sort((a,b)=>{
-      const va=d.variables.find(x=>x.propName===a), vb=d.variables.find(x=>x.propName===b);
-      return computeVarSortKey(va)-computeVarSortKey(vb);
-    });
-    createRowGroup(ordered);
+    const orderedVars=[...selVars].sort((a,b)=>computeVarSortKey(a)-computeVarSortKey(b));
+    createRowGroup(orderedVars.map(v=>v.key));
   };
+}
+// 選択された項目を、すべて同じ項目名にそろえて「同じ値」として結合する
+function mergeAsSharedValue(keys){
+  const d=state.draft;
+  const vars=keys.map(k=>d.variables.find(v=>v.key===k)).filter(Boolean);
+  if(vars.length<2) return;
+  const name=(prompt('これらを同じ値として扱います。共通の項目名を入力してください', vars[0].propName||'')||'').trim();
+  if(!name) return;
+  vars.forEach(v=>v.propName=name);
+  d.groupSelection=[];
+  refreshVarList();
+  toast(`${vars.length}件を同じ値として結合しました`);
+}
+/* ---- 選択（チェック）状態が変わったときに、ツールバーとプレビュー上のチェック表示を同期する ---- */
+function onGroupSelectionChanged(){
+  renderGroupToolbar();
+  applyGroupSelectionClassesToPreview();
+}
+function applyGroupSelectionClassesToPreview(){
+  const d=state.draft;
+  const sel = d.maskMode==='select' ? new Set(d.groupSelection||[]) : new Set(); // 選択モード以外では緑ハイライトを表示しない
+  document.querySelectorAll('#previewBody .mask, #previewBody td.picked').forEach(el=>{
+    el.classList.toggle('mask-checked', sel.has(el.dataset.key));
+  });
+}
+/* ---- 選択モード：プレビュー上のマスク／マスク済みセルをクリックしてチェックのON/OFFを切り替える ---- */
+function toggleGroupSelectionForKey(key){
+  const d=state.draft;
+  const v=d.variables.find(x=>x.key===key);
+  if(v && !v.propName.trim()){ toast('先に項目名を入力してください', true); return; }
+  d.groupSelection=d.groupSelection||[];
+  const wasSelected=d.groupSelection.includes(key);
+  if(wasSelected) d.groupSelection=d.groupSelection.filter(k=>k!==key);
+  else d.groupSelection.push(key);
+  const chk=document.querySelector(`#varList [data-key="${CSS.escape(key)}"] .grp-check`);
+  if(chk) chk.checked=!wasSelected;
+  onGroupSelectionChanged();
 }
 // マスク済み部分にカーソルを合わせたときに項目名をツールチップで表示する（自前実装＝表示が速い）
 function refreshMaskTitles(){
@@ -1366,12 +1626,9 @@ function addAutoDetectedXlsxVars(list){
   refreshVarList();
   toast(added ? `AIが${added}件の可変セルを自動マスクしました` : '新たに検出できるセルはありませんでした');
 }
-// 項目名の重複を避けるため、既存と被る場合は末尾に(2)(3)…を付与する
+// 項目名を正規化するだけの関数（同じ項目名は「同じ変数」として扱うため、重複していても連番は付けない）
 function uniquePropName_(d, base){
-  base=String(base||'').trim() || '項目';
-  let name=base, i=2;
-  while(d.variables.some(v=>v.propName===name)){ name=base+'('+i+')'; i++; }
-  return name;
+  return String(base||'').trim() || '項目';
 }
 /* ---- ④ AIで項目名生成 ---- */
 async function aiGenerateNames(){
@@ -1380,10 +1637,45 @@ async function aiGenerateNames(){
   if(!d.variables.length){ toast('先にマスクしてください', true); return; }
   try{
     loading(true,'AIが項目名を考えています…');
-    const { names }=await callAI('generatePropNames',{ texts:d.variables.map(v=>v.originalText) });
+    const items=buildNameContextItems(d);
+    const { names }=await callAI('generatePropNames',{ items, texts:d.variables.map(v=>v.originalText) });
     d.variables.forEach((v,i)=>{ if(names[i]) v.propName=names[i]; });
     loading(false); refreshVarList(); toast('項目名を生成しました');
   }catch(e){ loading(false); toast(e.message, true); }
+}
+/* マスク単体の文字列だけでは何の項目か判断できないため、周囲の文脈を添えてAIに渡す。
+   docx：本文中の前後の文章／xlsx：同じ行の左隣のセル（見出しであることが多い）を手がかりにする。 */
+function buildNameContextItems(d){
+  if(d.fileType==='docx'){
+    const body=document.getElementById('previewBody');
+    const full=body?previewFullText(body):'';
+    return d.variables.map(v=>{
+      const positions=allIndexOf(full, v.originalText);
+      const start=positions[v.occurrence||0];
+      if(start==null) return { text:v.originalText, context:v.originalText };
+      const end=start+v.originalText.length;
+      const before=full.slice(Math.max(0,start-40), start);
+      const after=full.slice(end, end+40);
+      return { text:v.originalText, context: before+'《'+v.originalText+'》'+after };
+    });
+  }
+  return d.variables.map(v=>{
+    if(!v.addr) return { text:v.originalText, context:v.originalText };
+    let leftLabel='';
+    try{
+      const ws=d.workbook && d.workbook.Sheets[v.sheet];
+      const cell=XLSX.utils.decode_cell(v.addr);
+      if(ws && cell.c>0){
+        const leftAddr=XLSX.utils.encode_cell({r:cell.r,c:cell.c-1});
+        const leftCell=ws[leftAddr];
+        if(leftCell) leftLabel=String(leftCell.w!=null?leftCell.w:(leftCell.v!=null?leftCell.v:''));
+      }
+    }catch(e){}
+    const context = leftLabel
+      ? `シート「${v.sheet}」 隣接セルの見出し:「${leftLabel}」 値:「${v.originalText}」`
+      : `シート「${v.sheet}」 セル${v.addr} 値:「${v.originalText}」`;
+    return { text:v.originalText, context };
+  });
 }
 /* ---- ⑥ 保存 ---- */
 function saveTemplate(){
@@ -1392,9 +1684,9 @@ function saveTemplate(){
   if(!d.variables.length){ toast('最低1つはマスクしてください', true); return; }
   const empty=d.variables.filter(v=>!v.propName.trim());
   if(empty.length){ toast('すべての項目名を入力してください', true); return; }
-  // propName重複チェック
-  const names=d.variables.map(v=>v.propName.trim());
-  if(new Set(names).size!==names.length){ toast('項目名が重複しています', true); return; }
+  // 項目名は繰り返しグループのメンバーも含めて自由に重複してOK。
+  // 同じ項目名の箇所は「同じ変数」として扱われ、契約書作成時は1回の入力にまとまる
+  // （グループ外の項目がグループのメンバー名と重複する場合は、そのグループの1件目の値が使われる）
   const record={
     id: d.editId || uid(),
     name:d.name.trim(), fileType:d.fileType, fileBase64:d.fileBase64,
@@ -1479,7 +1771,7 @@ async function analyzeSource(){
   try{
     loading(true, 'AIが情報を解析して入力中…');
     const payload = {
-      variables: t.variables.filter(v=>!v.repeatGroupId).map(v=>({ propName:v.propName, originalText:v.originalText })),
+      variables: uniqueNonGroupVars(t).map(v=>({ propName:v.propName, originalText:v.originalText })),
       source: m.source
     };
     if(m.image){
@@ -1520,12 +1812,12 @@ function renderMakeFormFields(){
       </div>
     </div>`;
   const fields=document.getElementById('fields');
-  t.variables.forEach(v=>{
-    if(v.repeatGroupId) return; // 繰り返しグループの項目は下に別枠で表示する
+  uniqueNonGroupVars(t).forEach(v=>{
     const f=document.createElement('div'); f.className='field'; f.style.margin='0';
     f.innerHTML=`<label class="lbl">${esc(v.propName)}</label>
       <input type="text" value="${esc(m.values[v.propName]||'')}" placeholder="${esc(v.originalText.slice(0,30))}">`;
     f.querySelector('input').oninput=e=>m.values[v.propName]=e.target.value;
+    f.querySelector('input').onfocus=()=>highlightMakePreviewForProp(v.propName);
     fields.appendChild(f);
   });
   const gbox=document.getElementById('groupFields');
@@ -1534,23 +1826,65 @@ function renderMakeFormFields(){
   });
   document.getElementById('confirmBtn').onclick=openConfirm;
 }
+// 繰り返しグループに属さない項目を、同じ項目名は1つにまとめて返す（同名＝同じ変数として扱うため）
+function uniqueNonGroupVars(t){
+  const memberNames=groupMemberPropNameSet(t);
+  const seen=new Set(); const out=[];
+  t.variables.forEach(v=>{
+    if(v.repeatGroupId) return;
+    if(memberNames.has(v.propName)) return; // 繰り返しグループのメンバー名と同じ→そちらの1件目の値を使うため、単独の入力欄は出さない
+    if(seen.has(v.propName)) return;
+    seen.add(v.propName); out.push(v);
+  });
+  return out;
+}
+// 繰り返しグループのメンバー項目名を、すべてのグループ分まとめたSetを返す
+function groupMemberPropNameSet(t){
+  const s=new Set();
+  (t.repeatGroups||[]).forEach(g=>g.memberPropNames.forEach(p=>s.add(p)));
+  return s;
+}
 function buildRowGroupCard(m, g){
   const card=document.createElement('div'); card.className='card'; card.style.marginBottom='16px';
   const entries=m.values.__groups[g.id];
   card.innerHTML=`<h3 style="font-size:15px;margin:0 0 4px">${esc(g.label)}（${entries.length}件）</h3>
-    <div class="hint" style="margin:0 0 10px">件数に応じて行を追加・削除できます。</div>
+    <div class="hint" style="margin:0 0 10px">件数に応じて行を追加・削除できます。▲▼で順番を入れ替えられます。</div>
     <div id="rg_${g.id}"></div>
     <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="rgAdd_${g.id}">＋ 追加</button></div>`;
   const list=card.querySelector(`#rg_${g.id}`);
   entries.forEach((entry,idx)=>{
-    const row=document.createElement('div'); row.className='form-grid'; row.style.cssText='margin-bottom:10px;padding:10px;border:1px solid var(--line);border-radius:10px;position:relative';
-    row.innerHTML = g.memberPropNames.map(p=>`
+    const row=document.createElement('div'); row.style.cssText='margin-bottom:10px;padding:10px;border:1px solid var(--line);border-radius:10px;position:relative';
+    const headerRow=document.createElement('div');
+    headerRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+    headerRow.innerHTML=`
+      <span class="pill" style="background:var(--brand-soft);color:var(--brand-ink)">${idx+1}件目</span>
+      <div class="row" style="gap:4px;margin:0">
+        <button class="icon-btn" data-up="1" title="上へ" ${idx===0?'disabled style="opacity:.3;cursor:default"':''}>${icon('arrowUp',14)}</button>
+        <button class="icon-btn" data-down="1" title="下へ" ${idx===entries.length-1?'disabled style="opacity:.3;cursor:default"':''}>${icon('arrowDown',14)}</button>
+      </div>`;
+    row.appendChild(headerRow);
+    const fieldsGrid=document.createElement('div'); fieldsGrid.className='form-grid';
+    fieldsGrid.innerHTML = g.memberPropNames.map(p=>`
       <div class="field" style="margin:0"><label class="lbl">${esc(p)}</label>
         <input type="text" data-p="${esc(p)}" value="${esc(entry[p]||'')}"></div>`).join('')
       + (entries.length>1?`<div class="row end" style="grid-column:1/-1;margin:0"><button class="btn danger sm" data-rm="1">この行を削除</button></div>`:'');
-    row.querySelectorAll('input').forEach(inp=>{ inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; }; });
-    const rm=row.querySelector('[data-rm]');
+    row.appendChild(fieldsGrid);
+    fieldsGrid.querySelectorAll('input').forEach(inp=>{
+      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; };
+      inp.onfocus=e=>highlightMakePreviewForProp(e.target.dataset.p);
+    });
+    const rm=fieldsGrid.querySelector('[data-rm]');
     if(rm) rm.onclick=()=>{ entries.splice(idx,1); renderMakeFormFields(); };
+    headerRow.querySelector('[data-up]').onclick=()=>{
+      if(idx===0) return;
+      [entries[idx-1], entries[idx]]=[entries[idx], entries[idx-1]];
+      renderMakeFormFields();
+    };
+    headerRow.querySelector('[data-down]').onclick=()=>{
+      if(idx===entries.length-1) return;
+      [entries[idx+1], entries[idx]]=[entries[idx], entries[idx+1]];
+      renderMakeFormFields();
+    };
     list.appendChild(row);
   });
   card.querySelector(`#rgAdd_${g.id}`).onclick=()=>{
@@ -1565,7 +1899,7 @@ function buildRowGroupCard(m, g){
 function openConfirm(){
   const m=state.make, t=m.template;
   const bd=document.getElementById('backdrop');
-  const rows=t.variables.filter(v=>!v.repeatGroupId).map(v=>`
+  const rows=uniqueNonGroupVars(t).map(v=>`
     <div class="confirm-row">
       <div class="k">${esc(v.propName)}</div>
       <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}">
@@ -1635,12 +1969,16 @@ async function generateDocx(t, values, filename){
   if(!xmlFile) throw new Error('document.xmlが見つかりません');
   const doc=new DOMParser().parseFromString(xmlFile.asText(),'application/xml');
   // 繰り返しグループ（行）を、通常の一括置換より先に展開する
-  const groupPropNames=new Set();
+  const groupFirstEntryByPropName={}; // 名前が衝突する「グループ外の項目」用フォールバック（そのグループの1件目の値）
   (t.repeatGroups||[]).forEach(g=>{
     const gv=values.__groups && values.__groups[g.id];
-    g.memberPropNames.forEach(p=>groupPropNames.add(p));
+    if(gv && gv.length){
+      g.memberPropNames.forEach(p=>{
+        if(!(p in groupFirstEntryByPropName)) groupFirstEntryByPropName[p]=gv[0][p]||'';
+      });
+    }
     if(!gv || !gv.length) return;
-    const memberVars=g.memberPropNames.map(p=>t.variables.find(v=>v.propName===p)).filter(Boolean);
+    const memberVars=g.memberPropNames.map(p=>t.variables.find(v=>v.propName===p && v.repeatGroupId===g.id)).filter(Boolean);
     if(!memberVars.length) return;
     const trNode=rgResolveRowAnchor(doc, memberVars[0].originalText, memberVars[0].occurrence);
     if(!trNode) return;
@@ -1652,12 +1990,14 @@ async function generateDocx(t, values, filename){
   const full=runs.map(r=>r.node.textContent).join('');
   const missing=[], jobs=[];
   t.variables.forEach(v=>{
-    if(groupPropNames.has(v.propName)) return; // 繰り返しグループの項目は展開済みのため対象外
+    if(v.repeatGroupId) return; // 繰り返しグループの実メンバーは展開処理済みのため対象外
     const positions=allIndexOf(full, v.originalText);
     const occ=(v.occurrence!=null?v.occurrence:0);   // 何番目の出現か
     const start=positions[occ];
     if(start==null){ missing.push(v.propName); return; }
-    jobs.push({ start, end:start+v.originalText.length, value:(values[v.propName]||'') });
+    // グループ外だが名前がグループメンバーと衝突する項目は、そのグループの1件目の値で埋める
+    const value = (values[v.propName]!=null ? values[v.propName] : groupFirstEntryByPropName[v.propName]) || '';
+    jobs.push({ start, end:start+v.originalText.length, value });
   });
   // 右（後方）から順に置換 → 前方の位置がずれず、同一文言でも各出現を正しく差し替えられる
   jobs.sort((a,b)=>b.start-a.start);
