@@ -2551,10 +2551,11 @@ function renderMakeFormFields(){
     <div class="card" style="padding:18px 22px">
       <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
         <h2 style="font-size:16px;margin:0">各項目を入力</h2>
-        <button class="btn ghost sm" id="numWidthBtn" title="入力済みの数字をまとめて全角・半角どちらかに揃えます">数字の全角/半角を統一</button>
       </div>
       <div id="fieldsAndGroups"></div>
-      <div class="row end" style="margin-top:14px">
+      <div class="row end" style="margin-top:14px;gap:8px">
+        <button class="btn ghost sm" id="numWidthBtn" title="入力済みの数字をまとめて全角・半角どちらかに揃えます">数字の全角/半角を統一</button>
+        <button class="btn ghost sm" id="alphaWidthBtn" title="入力済みの英字をまとめて全角・半角どちらかに揃えます">英字の全角/半角を統一</button>
         <button class="btn" id="confirmBtn">内容を確認する →</button>
       </div>
     </div>`;
@@ -2577,7 +2578,7 @@ function renderMakeFormFields(){
       const v=it.v;
       const f=document.createElement('div'); f.className='field'; f.style.margin='0';
       const showLookup=looksLikeCompanyNameField(v.propName);
-      f.innerHTML=`<label class="lbl" style="display:flex;align-items:center;gap:4px"><span>${esc(v.propName)}</span>${showLookup?`<button type="button" class="icon-btn" id="lookup_${esc(v.key)}" title="会社名から法人情報（住所・代表者名）を検索" style="padding:0;width:14px;height:14px;min-width:14px;display:inline-flex;align-items:center;justify-content:center;flex:none">${icon('search',12)}</button>`:''}</label>
+      f.innerHTML=`<label class="lbl" style="display:flex;align-items:center;gap:6px"><span>${esc(v.propName)}</span>${showLookup?`<button type="button" class="btn ghost sm" id="lookup_${esc(v.key)}" title="会社名から法人情報（住所・代表者名）を検索" style="padding:1px 8px;height:auto;line-height:1.6;font-size:11px;flex:none">会社情報AI検索</button>`:''}</label>
         <textarea class="val-input" rows="1" data-prop="${esc(v.propName)}" placeholder="${esc(v.originalText.slice(0,30))}">${esc(m.values[v.propName]||'')}</textarea>`;
       const inp=f.querySelector('textarea');
       autoGrowTextarea(inp);
@@ -2596,6 +2597,7 @@ function renderMakeFormFields(){
   flushGrid();
   document.getElementById('confirmBtn').onclick=openConfirm;
   document.getElementById('numWidthBtn').onclick=openNumberWidthModal;
+  document.getElementById('alphaWidthBtn').onclick=openAlphaWidthModal;
 }
 // 項目名から「会社名／法人名」を表す項目かどうかを推測する（法人情報検索ボタンの表示判定に使う）
 function looksLikeCompanyNameField(propName){
@@ -2811,6 +2813,45 @@ function applyNumberWidthUnify(mode){
   renderMakeFormFields();
   if(m.showPreview) renderMakePreview();
   toast(mode==='full' ? '数字を全角に統一しました' : '数字を半角に統一しました');
+}
+/* ============================================================
+   英字の全角/半角を統一（入力済みの値をまとめて変換）
+============================================================ */
+function toFullWidthAlpha(s){ return String(s).replace(/[A-Za-z]/g, c=>String.fromCharCode(c.charCodeAt(0)+0xFEE0)); }
+function toHalfWidthAlpha(s){ return String(s).replace(/[Ａ-Ｚａ-ｚ]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)); }
+function openAlphaWidthModal(){
+  const bd=document.getElementById('backdrop');
+  bd.innerHTML=`
+    <div class="modal" style="max-width:420px">
+      <div class="modal-head"><h2>英字の全角/半角を統一</h2><p class="hint" style="margin:4px 0 0">入力済みのすべての項目の英字を、選んだ方に揃えます。</p></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn ghost" id="alphaWidthFull" style="justify-content:flex-start">全角にする（例：ＡＢＣ）</button>
+        <button class="btn ghost" id="alphaWidthHalf" style="justify-content:flex-start">半角にする（例：ABC）</button>
+      </div>
+      <div class="row end" style="padding:0 20px 20px"><button class="btn ghost" id="alphaWidthCancel">キャンセル</button></div>
+    </div>`;
+  bd.classList.add('show');
+  document.getElementById('alphaWidthCancel').onclick=()=>bd.classList.remove('show');
+  document.getElementById('alphaWidthFull').onclick=()=>{ applyAlphaWidthUnify('full'); bd.classList.remove('show'); };
+  document.getElementById('alphaWidthHalf').onclick=()=>{ applyAlphaWidthUnify('half'); bd.classList.remove('show'); };
+}
+function applyAlphaWidthUnify(mode){
+  const m=state.make;
+  const conv = mode==='full' ? toFullWidthAlpha : toHalfWidthAlpha;
+  Object.keys(m.values).forEach(k=>{
+    if(k==='__groups') return;
+    if(typeof m.values[k]==='string') m.values[k]=conv(m.values[k]);
+  });
+  if(m.values.__groups){
+    Object.keys(m.values.__groups).forEach(gid=>{
+      (m.values.__groups[gid]||[]).forEach(entry=>{
+        Object.keys(entry).forEach(p=>{ entry[p]=conv(entry[p]||''); });
+      });
+    });
+  }
+  renderMakeFormFields();
+  if(m.showPreview) renderMakePreview();
+  toast(mode==='full' ? '英字を全角に統一しました' : '英字を半角に統一しました');
 }
 /* ============================================================
    内容確認ダイアログ → 出力
