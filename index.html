@@ -654,24 +654,31 @@ function updateMakePreviewValue(propName, value){
     el.textContent = value || el.dataset.orig || '';
   });
 }
+// 別の繰り返し行グループでも同じ項目名（＝同じ値として結合）を持つグループのIDを返す
+function linkedGroupIds(t, g){
+  const names=new Set(g.memberPropNames);
+  return (t.repeatGroups||[]).filter(g2=>g2.id!==g.id && g2.memberPropNames.some(p=>names.has(p))).map(g2=>g2.id);
+}
 // 「同じ値」として結合されている項目は、どこか1箇所に入力すると他の全ての入力欄にも自動反映する。
 // - 通常項目どうしは元々1つの入力欄にまとまっているのでそのまま。
 // - 繰り返し行のメンバー項目名が、他の通常項目や別の繰り返し行のメンバーと同じ場合、
-//   そちらの「選択中エントリ」の値と、画面に表示されている入力欄（DOM）も書き換える。
-function propagateSharedValue(propName, value, sourceGroupId){
+//   同じ行番号（sourceIndex）のエントリの値と、画面に表示されている入力欄（DOM）も書き換える。
+//   （表Aの1行目と表Bの1行目、2行目と2行目…が対応するように、行番号で揃える）
+function propagateSharedValue(propName, value, sourceGroupId, sourceIndex){
   const m=state.make, t=m.template;
   m.values[propName]=value;
   // 通常項目の入力欄（自分自身以外に表示されていれば）を更新
   document.querySelectorAll(`#fieldsAndGroups textarea[data-prop="${CSS.escape(propName)}"]`).forEach(inp=>{
     if(inp.value!==value) inp.value=value;
   });
-  // 他の繰り返し行グループにも同じ項目名のメンバーがあれば、選択中エントリの値とDOM表示も同期する
+  // 他の繰り返し行グループにも同じ項目名のメンバーがあれば、同じ行番号のエントリの値とDOM表示を同期する
   (t.repeatGroups||[]).forEach(g=>{
     if(g.id===sourceGroupId) return;
     if(!g.memberPropNames.includes(propName)) return;
     const entries=m.values.__groups && m.values.__groups[g.id];
     if(!entries || !entries.length) return;
-    const idx=(m.activeGroupEntryIndex && m.activeGroupEntryIndex[g.id]) || 0;
+    const idx = (sourceIndex!=null && sourceIndex<entries.length) ? sourceIndex
+      : ((m.activeGroupEntryIndex && m.activeGroupEntryIndex[g.id]) || 0);
     entries[idx][propName]=value;
     const groupListEl=document.getElementById('rg_'+g.id);
     const target=groupListEl ? [...groupListEl.querySelectorAll(`textarea[data-p="${CSS.escape(propName)}"]`)][idx] : null;
@@ -2115,25 +2122,47 @@ function buildRowGroupCard(m, g){
     row.appendChild(fieldsGrid);
     fieldsGrid.querySelectorAll('textarea').forEach(inp=>{
       autoGrowTextarea(inp);
-      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; propagateSharedValue(e.target.dataset.p, e.target.value, g.id); autoGrowTextarea(e.target); };
+      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; propagateSharedValue(e.target.dataset.p, e.target.value, g.id, idx); autoGrowTextarea(e.target); };
       inp.onfocus=e=>{ setActiveGroupEntry(g.id, idx); highlightMakePreviewForProp(e.target.dataset.p); };
     });
     const rm=fieldsGrid.querySelector('[data-rm]');
-    if(rm) rm.onclick=()=>{ entries.splice(idx,1); renderMakeFormFields(); };
+    if(rm) rm.onclick=()=>{
+      entries.splice(idx,1);
+      // 同じ値として結合されている別の繰り返し行グループも、同じ行番号のエントリを削除して行数を揃える
+      linkedGroupIds(m.template, g).forEach(gid=>{
+        const e2=m.values.__groups[gid];
+        if(e2 && e2.length>idx && e2.length>1) e2.splice(idx,1);
+      });
+      renderMakeFormFields();
+    };
     headerRow.querySelector('[data-up]').onclick=()=>{
       if(idx===0) return;
       [entries[idx-1], entries[idx]]=[entries[idx], entries[idx-1]];
+      linkedGroupIds(m.template, g).forEach(gid=>{
+        const e2=m.values.__groups[gid];
+        if(e2 && e2.length>idx) [e2[idx-1], e2[idx]]=[e2[idx], e2[idx-1]];
+      });
       renderMakeFormFields();
     };
     headerRow.querySelector('[data-down]').onclick=()=>{
       if(idx===entries.length-1) return;
       [entries[idx+1], entries[idx]]=[entries[idx], entries[idx+1]];
+      linkedGroupIds(m.template, g).forEach(gid=>{
+        const e2=m.values.__groups[gid];
+        if(e2 && e2.length>idx+1) [e2[idx+1], e2[idx]]=[e2[idx], e2[idx+1]];
+      });
       renderMakeFormFields();
     };
     list.appendChild(row);
   });
   card.querySelector(`#rgAdd_${g.id}`).onclick=()=>{
     entries.push(Object.fromEntries(g.memberPropNames.map(p=>[p,''])));
+    // 同じ値として結合されている別の繰り返し行グループも、行数が揃うように空の行を追加する
+    linkedGroupIds(m.template, g).forEach(gid=>{
+      const g2=m.template.repeatGroups.find(x=>x.id===gid);
+      const e2=m.values.__groups[gid];
+      if(g2 && e2){ while(e2.length<entries.length) e2.push(Object.fromEntries(g2.memberPropNames.map(p=>[p,'']))); }
+    });
     renderMakeFormFields();
   };
   return card;
