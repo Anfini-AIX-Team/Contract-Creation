@@ -1953,8 +1953,20 @@ async function analyzeSource(){
   if(!m.source.trim() && !m.image){ toast('テキストを貼り付けるか、画像を添付してください', true); return; }
   try{
     loading(true, 'AIが情報を解析して入力中…');
+    ensureGroupValues(m);
+    // 通常項目に加えて、繰り返し行のメンバー項目名も対象に含める（1件目の内容として使う）
+    const groupMemberVars=[];
+    const seenGroupNames=new Set();
+    (t.repeatGroups||[]).forEach(g=>{
+      g.memberPropNames.forEach(p=>{
+        if(seenGroupNames.has(p)) return;
+        seenGroupNames.add(p);
+        const v=t.variables.find(x=>x.repeatGroupId===g.id && x.propName===p);
+        if(v) groupMemberVars.push(v);
+      });
+    });
     const payload = {
-      variables: uniqueNonGroupVars(t).map(v=>({ propName:v.propName, originalText:v.originalText })),
+      variables: [...uniqueNonGroupVars(t), ...groupMemberVars].map(v=>({ propName:v.propName, originalText:v.originalText })),
       source: m.source
     };
     if(m.image){
@@ -1962,11 +1974,18 @@ async function analyzeSource(){
       payload.imageMime = m.image.mime;
     }
     const { values } = await callAI('extractValues', payload);
-    t.variables.forEach(v=>{
-      if(values && values[v.propName] !== undefined){
-        m.values[v.propName] = values[v.propName];
-      }
-    });
+    if(values){
+      uniqueNonGroupVars(t).forEach(v=>{
+        if(values[v.propName] !== undefined && values[v.propName] !== '') m.values[v.propName]=values[v.propName];
+      });
+      (t.repeatGroups||[]).forEach(g=>{
+        const entries=m.values.__groups[g.id];
+        if(!entries || !entries.length) return;
+        g.memberPropNames.forEach(p=>{
+          if(values[p] !== undefined && values[p] !== '' && !entries[0][p]) entries[0][p]=values[p];
+        });
+      });
+    }
     loading(false);
     renderMakeFormFields();
     toast('AI自動入力を反映しました。内容をご確認ください。');
@@ -2160,13 +2179,45 @@ async function generateOutput(filename){
     toast('契約書を出力しました');
   }catch(e){ loading(false); toast('生成エラー: '+e.message, true); }
 }
+/* 文書内の絶対区間[start,end)を、現在のrunsに基づいて実際のDOMノード参照に解決する
+   （置換を後回しにできるよう、ノードそのものを保持しておく） */
+function resolveRangeToRunEdit(runs, start, end){
+  const texts=runs.map(r=>r.node.textContent);
+  let pos=0, sR=-1, sO=0, eR=-1, eO=0;
+  for(let i=0;i<texts.length;i++){
+    const len=texts[i].length;
+    if(sR<0 && start<pos+len){ sR=i; sO=start-pos; }
+    if(end<=pos+len){ eR=i; eO=end-pos; break; }
+    pos+=len;
+  }
+  if(sR<0||eR<0) return null;
+  return { startNode:runs[sR].node, startOffset:sO, endNode:runs[eR].node, endOffset:eO,
+    middleNodes: runs.slice(sR+1, eR).map(r=>r.node), sameNode: sR===eR };
+}
+function applyRunEdit(edit, value){
+  if(edit.sameNode){
+    const t=edit.startNode.textContent;
+    setT(edit.startNode, t.slice(0,edit.startOffset)+value+t.slice(edit.endOffset));
+  }else{
+    const st=edit.startNode.textContent;
+    setT(edit.startNode, st.slice(0,edit.startOffset)+value);
+    edit.middleNodes.forEach(n=>setT(n,''));
+    const et=edit.endNode.textContent;
+    setT(edit.endNode, et.slice(edit.endOffset));
+  }
+}
 /* ---- docx 生成（XMLを直接置換して書式を保持 / 出現位置ごとに個別置換） ---- */
 async function generateDocx(t, values, filename){
   const zip=new PizZip(base64ToAb(t.fileBase64));
   const xmlFile=zip.file('word/document.xml');
   if(!xmlFile) throw new Error('document.xmlが見つかりません');
   const doc=new DOMParser().parseFromString(xmlFile.asText(),'application/xml');
-  // 繰り返しグループ（行）を、通常の一括置換より先に展開する
+
+  // 重要：繰り返し行グループを展開すると、同じプレースホルダー文言（例:「●●」）を使う
+  // 後続の通常項目の「何番目の出現か」がずれてしまい、違う箇所に値が入る／見つからなくなる
+  // 不具合があった。これを防ぐため、展開を始める前に、通常項目の差し込み先を実際のDOMノードへ
+  // 解決しておき（ノード参照は展開で他の行が増減しても変わらない）、展開後はそのノード参照へ
+  // 直接書き込む。occurrenceの再検索は展開後には行わない。
   const groupFirstEntryByPropName={}; // 名前が衝突する「グループ外の項目」用フォールバック（そのグループの1件目の値）
   (t.repeatGroups||[]).forEach(g=>{
     const gv=values.__groups && values.__groups[g.id];
@@ -2175,31 +2226,52 @@ async function generateDocx(t, values, filename){
         if(!(p in groupFirstEntryByPropName)) groupFirstEntryByPropName[p]=gv[0][p]||'';
       });
     }
+  });
+
+  const preRuns=[...doc.getElementsByTagName('w:t')].map(node=>({node}));
+  const preFull=preRuns.map(r=>r.node.textContent).join('');
+  const missing=[], pendingEdits=[];
+  t.variables.forEach(v=>{
+    if(v.repeatGroupId) return; // 繰り返しグループの実メンバーは展開処理側で反映するため対象外
+    const positions=allIndexOf(preFull, v.originalText);
+    const occ=(v.occurrence!=null?v.occurrence:0);
+    const start=positions[occ];
+    if(start==null){ missing.push(v.propName); return; }
+    const edit=resolveRangeToRunEdit(preRuns, start, start+v.originalText.length);
+    if(!edit){ missing.push(v.propName); return; }
+    const value=(values[v.propName]!=null ? values[v.propName] : groupFirstEntryByPropName[v.propName]) || '';
+    pendingEdits.push({ edit, value });
+  });
+
+  // 同様に、各繰り返し行グループの対象行（アンカー）も、他のどのグループの展開よりも先に
+  // 現時点のDOM上で解決しておく。そうしないと、複数のグループが同じプレースホルダー文言
+  // （例:「●●」）を使っている場合、先に展開したグループの分だけ後のグループの出現位置が
+  // ずれてしまい、その行が見つからず「反映されない」不具合が起きる。
+  const groupAnchors={};
+  (t.repeatGroups||[]).forEach(g=>{
+    const gv=values.__groups && values.__groups[g.id];
     if(!gv || !gv.length) return;
     const memberVars=g.memberPropNames.map(p=>t.variables.find(v=>v.propName===p && v.repeatGroupId===g.id)).filter(Boolean);
     if(!memberVars.length) return;
     const trNode=rgResolveRowAnchor(doc, memberVars[0].originalText, memberVars[0].occurrence);
     if(!trNode) return;
+    groupAnchors[g.id]={ trNode, memberVars };
+  });
+
+  // 繰り返し行グループ（行）を展開する。アンカー行は上ですべて解決済みなので、
+  // 他のグループが先に展開されて行数が増減しても位置がずれない。
+  (t.repeatGroups||[]).forEach(g=>{
+    const gv=values.__groups && values.__groups[g.id];
+    if(!gv || !gv.length) return;
+    const anchor=groupAnchors[g.id];
+    if(!anchor) return;
     const entries=gv.map(entryObj=>g.memberPropNames.map(p=>entryObj[p]||''));
-    rgExpandRowGroup(trNode, memberVars.map(v=>v.originalText), entries);
+    rgExpandRowGroup(anchor.trNode, anchor.memberVars.map(v=>v.originalText), entries);
   });
-  // 文書全体の w:t を文書順に集約（マスク時のプレビュー連結と同じ数え方に合わせる）
-  const runs=[...doc.getElementsByTagName('w:t')].map(node=>({node}));
-  const full=runs.map(r=>r.node.textContent).join('');
-  const missing=[], jobs=[];
-  t.variables.forEach(v=>{
-    if(v.repeatGroupId) return; // 繰り返しグループの実メンバーは展開処理済みのため対象外
-    const positions=allIndexOf(full, v.originalText);
-    const occ=(v.occurrence!=null?v.occurrence:0);   // 何番目の出現か
-    const start=positions[occ];
-    if(start==null){ missing.push(v.propName); return; }
-    // グループ外だが名前がグループメンバーと衝突する項目は、そのグループの1件目の値で埋める
-    const value = (values[v.propName]!=null ? values[v.propName] : groupFirstEntryByPropName[v.propName]) || '';
-    jobs.push({ start, end:start+v.originalText.length, value });
-  });
-  // 右（後方）から順に置換 → 前方の位置がずれず、同一文言でも各出現を正しく差し替えられる
-  jobs.sort((a,b)=>b.start-a.start);
-  jobs.forEach(j=>replaceRangeInRuns(runs, j.start, j.end, j.value));
+
+  // 展開が終わったあとで、あらかじめ解決しておいたノード参照に直接書き込む
+  pendingEdits.forEach(({edit, value})=>applyRunEdit(edit, value));
+
   const out=new XMLSerializer().serializeToString(doc);
   zip.file('word/document.xml', out);
   const blob=zip.generate({ type:'blob', mimeType:'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
