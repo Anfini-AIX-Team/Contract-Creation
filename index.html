@@ -88,6 +88,7 @@
   }
   input:focus,textarea:focus,select:focus{outline:none;border-color:var(--brand);box-shadow:0 0 0 3px var(--brand-soft)}
   textarea{resize:vertical;min-height:120px}
+  textarea.val-input{min-height:38px;max-height:300px;line-height:1.4;overflow-y:hidden}
   input::placeholder,textarea::placeholder{color:var(--text-muted);opacity:1}
   .dropzone{
     border:2px dashed var(--line);border-radius:var(--radius);padding:34px;text-align:center;
@@ -130,7 +131,7 @@
   .docx-preview p{margin:0 0 10px}
   .docx-preview table{border-collapse:collapse;margin:8px 0}
   .docx-preview td,.docx-preview th{border:1px solid var(--line);padding:4px 8px}
-  .mask{background:var(--mask);border-bottom:2px solid var(--mask-line);border-radius:3px;padding:0 2px;cursor:pointer}
+  .mask{background:var(--mask);border-bottom:2px solid var(--mask-line);border-radius:3px;padding:0 2px;cursor:pointer;white-space:pre-line}
   .mask.mask-selected{outline:2px solid var(--brand);outline-offset:1px}
   .mask:hover{filter:brightness(.96)}
   /* マスクモード切替（鉛筆／消しゴム） */
@@ -559,7 +560,7 @@ async function renderMakePreview(){
 }
 // プレビュー上のマスクをクリックしたとき、対応する入力欄にフォーカスして直接入力できるようにする
 function focusMakeFormFieldForProp(propName){
-  const standalone=document.querySelector(`#fieldsAndGroups input[data-prop="${CSS.escape(propName)}"]`);
+  const standalone=document.querySelector(`#fieldsAndGroups textarea[data-prop="${CSS.escape(propName)}"]`);
   if(standalone){
     standalone.focus();
     standalone.scrollIntoView({block:'center', behavior:'smooth'});
@@ -570,7 +571,7 @@ function focusMakeFormFieldForProp(propName){
   const g=(t.repeatGroups||[]).find(gr=>gr.memberPropNames.includes(propName));
   if(!g) return;
   const idx=(m.activeGroupEntryIndex && m.activeGroupEntryIndex[g.id]) || 0;
-  const rows=document.querySelectorAll(`#fieldsAndGroups input[data-p="${CSS.escape(propName)}"]`);
+  const rows=document.querySelectorAll(`#fieldsAndGroups textarea[data-p="${CSS.escape(propName)}"]`);
   const target=rows[idx]||rows[0];
   if(target){
     setActiveGroupEntry(g.id, rows.length?[...rows].indexOf(target):0);
@@ -661,7 +662,7 @@ function propagateSharedValue(propName, value, sourceGroupId){
   const m=state.make, t=m.template;
   m.values[propName]=value;
   // 通常項目の入力欄（自分自身以外に表示されていれば）を更新
-  document.querySelectorAll(`#fieldsAndGroups input[data-prop="${CSS.escape(propName)}"]`).forEach(inp=>{
+  document.querySelectorAll(`#fieldsAndGroups textarea[data-prop="${CSS.escape(propName)}"]`).forEach(inp=>{
     if(inp.value!==value) inp.value=value;
   });
   // 他の繰り返し行グループにも同じ項目名のメンバーがあれば、選択中エントリの値とDOM表示も同期する
@@ -673,7 +674,7 @@ function propagateSharedValue(propName, value, sourceGroupId){
     const idx=(m.activeGroupEntryIndex && m.activeGroupEntryIndex[g.id]) || 0;
     entries[idx][propName]=value;
     const groupListEl=document.getElementById('rg_'+g.id);
-    const target=groupListEl ? [...groupListEl.querySelectorAll(`input[data-p="${CSS.escape(propName)}"]`)][idx] : null;
+    const target=groupListEl ? [...groupListEl.querySelectorAll(`textarea[data-p="${CSS.escape(propName)}"]`)][idx] : null;
     if(target && target.value!==value) target.value=value;
   });
   updateMakePreviewValue(propName, value);
@@ -1762,15 +1763,33 @@ function addAutoDetectedDocxVars(list, full){
   if(!list.length){ toast('可変部分が見つかりませんでした', true); return; }
   const d=state.draft;
   const nextOcc={}; // 同一文言が複数回出てくる場合に、出現順で重複なく割り当てるためのカウンタ
-  let added=0, skipped=0;
+  let added=0, skipped=0, overlapped=0;
+  // 既存のマスク（v.originalText/v.occurrence）が、今の本文上でどの[start,end)を占めているかを求める
+  function rangeOfExisting(v){
+    const positions=allIndexOf(full, v.originalText);
+    const start=positions[v.occurrence];
+    if(start==null) return null;
+    return [start, start+v.originalText.length];
+  }
+  // 新規追加分どうし・新規と既存が、文字範囲として重なっていないか確認する
+  function overlapsExisting(start, end){
+    return d.variables.some(v=>{
+      const r=rangeOfExisting(v);
+      if(!r) return false;
+      return start<r[1] && r[0]<end; // 区間が重なっているか
+    });
+  }
   list.forEach(item=>{
     const text=String(item && item.text || '').trim();
     if(!text) return;
     const occurrence = nextOcc[text]||0;
     nextOcc[text]=occurrence+1;
     const positions=allIndexOf(full, text);
-    if(positions[occurrence]==null){ skipped++; return; } // 本文中に見つからない箇所は除外
+    const start=positions[occurrence];
+    if(start==null){ skipped++; return; } // 本文中に見つからない箇所は除外
+    const end=start+text.length;
     if(d.variables.some(v=>v.originalText===text && v.occurrence===occurrence)) return; // 既にマスク済みならスキップ
+    if(overlapsExisting(start, end)){ overlapped++; return; } // 既存（または今回追加済み）のマスクと範囲が重なる場合は除外
     d.variables.push({ key:uid(), originalText:text, occurrence, propName: uniquePropName_(d, item.propName) });
     added++;
   });
@@ -1778,7 +1797,7 @@ function addAutoDetectedDocxVars(list, full){
   applyMaskModeUI();
   refreshVarList();
   toast(added
-    ? `AIが${added}件の可変部分を自動マスクしました${skipped?`（${skipped}件は本文と一致せず除外）`:''}`
+    ? `AIが${added}件の可変部分を自動マスクしました${skipped?`（${skipped}件は本文と一致せず除外）`:''}${overlapped?`（${overlapped}件は他のマスクと重複するため除外）`:''}`
     : '新たに検出できる箇所はありませんでした');
 }
 // xlsx：AIが返した{sheet, addr, propName}のセルをマスク化する
@@ -1999,6 +2018,12 @@ function ensureGroupValues(m){
     m.values.__groups[g.id] = [ Object.fromEntries(g.memberPropNames.map(p=>[p,''])) ];
   });
 }
+// 値入力用のtextareaを、内容の行数に応じて自動で高さを伸ばす（改行入力に対応するため）
+function autoGrowTextarea(el){
+  if(!el) return;
+  el.style.height='auto';
+  el.style.height=Math.min(el.scrollHeight, 300)+'px';
+}
 function renderMakeFormFields(){
   const m=state.make, t=m.template;
   const box=document.getElementById('formBox');
@@ -2031,9 +2056,11 @@ function renderMakeFormFields(){
       const v=it.v;
       const f=document.createElement('div'); f.className='field'; f.style.margin='0';
       f.innerHTML=`<label class="lbl">${esc(v.propName)}</label>
-        <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}" placeholder="${esc(v.originalText.slice(0,30))}">`;
-      f.querySelector('input').oninput=e=>{ propagateSharedValue(v.propName, e.target.value, null); };
-      f.querySelector('input').onfocus=()=>highlightMakePreviewForProp(v.propName);
+        <textarea class="val-input" data-prop="${esc(v.propName)}" placeholder="${esc(v.originalText.slice(0,30))}">${esc(m.values[v.propName]||'')}</textarea>`;
+      const inp=f.querySelector('textarea');
+      autoGrowTextarea(inp);
+      inp.oninput=e=>{ propagateSharedValue(v.propName, e.target.value, null); autoGrowTextarea(e.target); };
+      inp.onfocus=()=>highlightMakePreviewForProp(v.propName);
       pendingGrid.appendChild(f);
     }else{
       flushGrid();
@@ -2083,11 +2110,12 @@ function buildRowGroupCard(m, g){
     const fieldsGrid=document.createElement('div'); fieldsGrid.className='form-grid';
     fieldsGrid.innerHTML = g.memberPropNames.map(p=>`
       <div class="field" style="margin:0"><label class="lbl">${esc(p)}</label>
-        <input type="text" data-p="${esc(p)}" value="${esc(entry[p]||'')}"></div>`).join('')
+        <textarea class="val-input" data-p="${esc(p)}">${esc(entry[p]||'')}</textarea></div>`).join('')
       + (entries.length>1?`<div class="row end" style="grid-column:1/-1;margin:0"><button class="btn danger sm" data-rm="1">この行を削除</button></div>`:'');
     row.appendChild(fieldsGrid);
-    fieldsGrid.querySelectorAll('input').forEach(inp=>{
-      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; propagateSharedValue(e.target.dataset.p, e.target.value, g.id); };
+    fieldsGrid.querySelectorAll('textarea').forEach(inp=>{
+      autoGrowTextarea(inp);
+      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; propagateSharedValue(e.target.dataset.p, e.target.value, g.id); autoGrowTextarea(e.target); };
       inp.onfocus=e=>{ setActiveGroupEntry(g.id, idx); highlightMakePreviewForProp(e.target.dataset.p); };
     });
     const rm=fieldsGrid.querySelector('[data-rm]');
@@ -2119,7 +2147,7 @@ function openConfirm(){
   const rows=uniqueNonGroupVars(t).map(v=>`
     <div class="confirm-row">
       <div class="k">${esc(v.propName)}</div>
-      <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}">
+      <textarea class="val-input" data-prop="${esc(v.propName)}">${esc(m.values[v.propName]||'')}</textarea>
     </div>`).join('');
   const groupSummary=(t.repeatGroups||[]).map(g=>{
     const gv=m.values.__groups && m.values.__groups[g.id];
@@ -2151,8 +2179,9 @@ function openConfirm(){
   
   const fnInput = document.getElementById('outputFilenameInput');
   fnInput.oninput = e => { m.outputFilename = e.target.value; };
-  bd.querySelectorAll('input[data-prop]').forEach(inp=>{
-    inp.oninput=e=>{ m.values[e.target.dataset.prop]=e.target.value; };
+  bd.querySelectorAll('textarea[data-prop]').forEach(inp=>{
+    autoGrowTextarea(inp);
+    inp.oninput=e=>{ m.values[e.target.dataset.prop]=e.target.value; autoGrowTextarea(e.target); };
   });
   document.getElementById('cancelC').onclick=()=>{ bd.classList.remove('show'); renderMakeFormFields(); };
   document.getElementById('doneC').onclick=async()=>{ 
@@ -2197,10 +2226,10 @@ function resolveRangeToRunEdit(runs, start, end){
 function applyRunEdit(edit, value){
   if(edit.sameNode){
     const t=edit.startNode.textContent;
-    setT(edit.startNode, t.slice(0,edit.startOffset)+value+t.slice(edit.endOffset));
+    writeValueIntoNode(edit.startNode, t.slice(0,edit.startOffset), value, t.slice(edit.endOffset));
   }else{
     const st=edit.startNode.textContent;
-    setT(edit.startNode, st.slice(0,edit.startOffset)+value);
+    writeValueIntoNode(edit.startNode, st.slice(0,edit.startOffset), value, '');
     edit.middleNodes.forEach(n=>setT(n,''));
     const et=edit.endNode.textContent;
     setT(edit.endNode, et.slice(edit.endOffset));
@@ -2279,6 +2308,26 @@ async function generateDocx(t, values, filename){
   if(missing.length) toast('一部の項目が本文中に見つかりませんでした: '+missing.join(', '), true);
 }
 function setT(node, text){ node.textContent=text; node.setAttribute('xml:space','preserve'); }
+/* 値に改行(\n)が含まれる場合、そのままではWord上で改行として表示されないため、
+   <w:t>行1</w:t><w:br/><w:t>行2</w:t>... のように <w:br/> を挟んで実際の改行にする。
+   prefix/suffix は、置換対象の前後に残っている元の文字列（改行を含まない前提）。 */
+function writeValueIntoNode(node, prefix, value, suffix){
+  const doc=node.ownerDocument;
+  const lines=String(value).split('\n');
+  if(lines.length<=1){ setT(node, prefix+value+suffix); return node; }
+  setT(node, prefix+lines[0]);
+  let ref=node;
+  for(let i=1;i<lines.length;i++){
+    const br=doc.createElement('w:br');
+    ref.parentNode.insertBefore(br, ref.nextSibling);
+    const t2=doc.createElement('w:t'); t2.setAttribute('xml:space','preserve');
+    const isLast=(i===lines.length-1);
+    t2.textContent=lines[i]+(isLast?suffix:'');
+    br.parentNode.insertBefore(t2, br.nextSibling);
+    ref=t2;
+  }
+  return ref;
+}
 // 文書全体の連結テキストにおける絶対区間[start,end)を、複数runにまたがって置換
 function replaceRangeInRuns(runs, start, end, value){
   const texts=runs.map(r=>r.node.textContent);
@@ -2290,9 +2339,9 @@ function replaceRangeInRuns(runs, start, end, value){
     pos+=len;
   }
   if(sR<0||eR<0) return false;
-  if(sR===eR){ setT(runs[sR].node, texts[sR].slice(0,sO)+value+texts[sR].slice(eO)); }
+  if(sR===eR){ writeValueIntoNode(runs[sR].node, texts[sR].slice(0,sO), value, texts[sR].slice(eO)); }
   else{
-    setT(runs[sR].node, texts[sR].slice(0,sO)+value);
+    writeValueIntoNode(runs[sR].node, texts[sR].slice(0,sO), value, '');
     for(let i=sR+1;i<eR;i++) setT(runs[i].node,'');
     setT(runs[eR].node, texts[eR].slice(eO));
   }
