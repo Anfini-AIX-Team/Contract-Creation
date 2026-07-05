@@ -2159,27 +2159,6 @@ function syncGroupMemberName(d, v, oldName, newName){
   const idx=g.memberPropNames.indexOf(oldName);
   if(idx>=0) g.memberPropNames[idx]=newName;
 }
-/* 項目名を変更する共通処理。
-   「同じ値として結合」した項目は、内部的には同じ項目名を持つ複数の独立した変数（別のオブジェクト）
-   として保持されているため、1つの入力欄だけで v.propName を書き換えても、結合されている他の
-   出現箇所（別の入力欄）には反映されず、名前がずれてしまう不具合があった。
-   ここで、変更前の名前を持つ他のすべての変数にも同じ新しい名前を伝播させ、
-   （表示中であれば）対応する入力欄のDOM表示もその場で更新する。 */
-function renamePropName(d, v, newName){
-  const oldName=v.propName;
-  if(oldName===newName) return;
-  v.propName=newName;
-  syncGroupMemberName(d, v, oldName, newName);
-  if(oldName.trim()){
-    d.variables.forEach(other=>{
-      if(other===v || other.propName!==oldName) return;
-      other.propName=newName;
-      syncGroupMemberName(d, other, oldName, newName);
-      const inp=document.querySelector(`#varList [data-key="${CSS.escape(other.key)}"] input[type=text]`);
-      if(inp && inp.value!==newName) inp.value=newName;
-    });
-  }
-}
 // 「同じ値として結合」を解除する：この1件だけに新しい項目名を付け、他の結合相手には影響させない
 // （renamePropNameとは逆に、あえて他の同名項目へは伝播させない一回限りのリネーム）
 function unshareVar(d, v){
@@ -2191,6 +2170,77 @@ function unshareVar(d, v){
   syncGroupMemberName(d, v, oldName, newName);
   refreshVarList();
   toast('この項目を独立させました');
+}
+// 項目名入力欄に、入力中のライブ反映（プレビューのツールチップ更新）と、
+// 編集を終えたとき（フォーカスが外れた/Enterを押した）の確定処理を仕込む共通処理。
+// 「同じ値として結合」されている項目の名前を書き換えた場合、そのまま全員に伝播させず、
+// 「他の項目も変更するか、これだけ変更して独立させるか」を確認するダイアログを出す。
+function wireUpPropNameInput(inp, d, v){
+  let startName=v.propName;
+  inp.onfocus=()=>{ startName=v.propName; highlightPreviewForVar(v.key); };
+  inp.oninput=e=>{
+    v.propName=e.target.value; // 入力中はこの項目だけライブ反映（他の結合相手はまだ変更しない）
+    refreshMaskTitles();
+  };
+  inp.onblur=e=>{ commitPropNameChange(d, v, startName, e.target.value, inp); };
+  inp.addEventListener('keydown', e=>{ if(e.key==='Enter'){ e.preventDefault(); inp.blur(); } });
+}
+function commitPropNameChange(d, v, oldName, newValue, inp){
+  const newName=(newValue||'').trim();
+  if(newName===oldName) return; // 変更なし
+  if(!newName){
+    v.propName=oldName; if(inp) inp.value=oldName;
+    toast('項目名を空にはできません', true);
+    return;
+  }
+  const others = oldName.trim() ? d.variables.filter(o=>o!==v && o.propName===oldName) : [];
+  if(!others.length){
+    // 元々他の項目と共有されていなかった場合は、確認なしでそのまま確定する
+    v.propName=newName;
+    syncGroupMemberName(d, v, oldName, newName);
+    refreshVarList();
+    return;
+  }
+  showRenameSharedConfirm(oldName, newName, others.length, choice=>{
+    if(choice==='all'){
+      v.propName=newName;
+      syncGroupMemberName(d, v, oldName, newName);
+      others.forEach(o=>{ o.propName=newName; syncGroupMemberName(d, o, oldName, newName); });
+      refreshVarList();
+      toast('結合されている項目をすべて変更しました');
+    }else if(choice==='onlyThis'){
+      v.propName=newName;
+      syncGroupMemberName(d, v, oldName, newName);
+      refreshVarList();
+      toast('この項目だけ独立させました');
+    }else{
+      // キャンセル：元の名前に戻す
+      v.propName=oldName;
+      if(inp) inp.value=oldName;
+      refreshMaskTitles();
+    }
+  });
+}
+// 「同じ値として結合されている項目の名前を変更しようとしたとき」に出す確認モーダル。
+function showRenameSharedConfirm(oldName, newName, otherCount, callback){
+  const bd=document.getElementById('backdrop');
+  bd.innerHTML=`
+    <div class="modal" style="max-width:460px">
+      <div class="modal-head"><h2>項目名の変更</h2><p class="hint" style="margin:4px 0 0">
+        「${esc(oldName)}」は同じ値として結合されている項目が他に${otherCount}件あります。<br>
+        「${esc(newName)}」への変更を、それらにも反映しますか？
+      </p></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn ghost" id="renameAllBtn" style="justify-content:flex-start">他の${otherCount}件も変更する（結合を維持）</button>
+        <button class="btn ghost" id="renameOnlyBtn" style="justify-content:flex-start">これだけ変更する（結合から外して独立させる）</button>
+      </div>
+      <div class="row end" style="padding:0 20px 20px"><button class="btn ghost" id="renameCancelBtn">キャンセル</button></div>
+    </div>`;
+  bd.classList.add('show');
+  function finish(choice){ bd.classList.remove('show'); callback(choice); }
+  document.getElementById('renameAllBtn').onclick=()=>finish('all');
+  document.getElementById('renameOnlyBtn').onclick=()=>finish('onlyThis');
+  document.getElementById('renameCancelBtn').onclick=()=>finish('cancel');
 }
 // 通常（未グループ）の1項目ぶんのDOM要素を作る
 function buildVarItemEl(d, v, nameCounts){
@@ -2216,11 +2266,7 @@ function buildVarItemEl(d, v, nameCounts){
     <div class="grp-check-col" title="行グループ化／同じ値として結合する項目を選ぶ">
       <input type="checkbox" class="grp-check" ${checked?'checked':''}>
     </div>`;
-  item.querySelector('input[type=text]').oninput=e=>{
-    renamePropName(d, v, e.target.value);
-    refreshMaskTitles();
-  };
-  item.querySelector('input[type=text]').onfocus=()=>highlightPreviewForVar(v.key);
+  wireUpPropNameInput(item.querySelector('input[type=text]'), d, v);
   const unshareBtn1=item.querySelector('.unshare-btn');
   if(unshareBtn1) unshareBtn1.onclick=()=>unshareVar(d, v);
   item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
@@ -2284,13 +2330,9 @@ function buildGroupCardEl(d, g, nameCounts){
           <input type="checkbox" class="grp-check" ${checked?'checked':''}>
         </div>`;
       const inp=row.querySelector('input[type=text]');
-      inp.onfocus=()=>highlightPreviewForVar(v.key);
+      wireUpPropNameInput(inp, d, v);
       const unshareBtn2=row.querySelector('.unshare-btn');
       if(unshareBtn2) unshareBtn2.onclick=()=>unshareVar(d, v);
-      inp.oninput=e=>{
-        renamePropName(d, v, e.target.value);
-        refreshMaskTitles();
-      };
       const chk=row.querySelector('.grp-check');
       chk.onchange=()=>{
         d.groupSelection=d.groupSelection||[];
