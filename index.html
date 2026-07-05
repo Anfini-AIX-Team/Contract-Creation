@@ -751,7 +751,8 @@ async function importTemplates(file){
       state.templates.push({
         id: uid(), // IDは必ず振り直し、既存フォーマットと衝突させない
         name: String(t.name), fileType: t.fileType, fileBase64: t.fileBase64,
-        variables: t.variables
+        variables: t.variables,
+        repeatGroups: Array.isArray(t.repeatGroups) ? t.repeatGroups : [] // 繰り返し行グループの定義も引き継ぐ（欠落するとグループ解除状態のまま再グループ化もできなくなる不具合の原因だった）
       });
       added++;
     });
@@ -819,10 +820,16 @@ function startTemplateNew(){ state.draft={ name:'', fileType:null, fileBase64:nu
 async function startTemplateEdit(id){
   const t=state.templates.find(x=>x.id===id);
   if(!t){ toast('フォーマットが見つかりません', true); return; }
+  const validGroupIds=new Set((t.repeatGroups||[]).map(g=>g.id));
+  const orphanedCount=(t.variables||[]).filter(v=>v.repeatGroupId && !validGroupIds.has(v.repeatGroupId)).length;
   const d={ name:t.name, fileType:t.fileType, fileBase64:t.fileBase64, previewHtml:'', workbook:null,
-    variables:t.variables.map(v=>({ key:uid(), propName:v.propName, originalText:v.originalText,
-      occurrence:(v.occurrence!=null?v.occurrence:0), sheet:v.sheet||undefined, addr:v.addr||undefined,
-      repeatGroupId:v.repeatGroupId||null, repeatRole:v.repeatRole||null })),
+    variables:t.variables.map(v=>{
+      // 参照先のグループ定義が存在しない（インポート等で欠落した）場合は、通常項目として扱えるよう解除する
+      const orphaned = v.repeatGroupId && !validGroupIds.has(v.repeatGroupId);
+      return { key:uid(), propName:v.propName, originalText:v.originalText,
+        occurrence:(v.occurrence!=null?v.occurrence:0), sheet:v.sheet||undefined, addr:v.addr||undefined,
+        repeatGroupId: orphaned ? null : (v.repeatGroupId||null), repeatRole: orphaned ? null : (v.repeatRole||null) };
+    }),
     repeatGroups:(t.repeatGroups||[]).map(g=>({...g})),
     groupSelection:[],
     maskMode:'add', editId:t.id };
@@ -838,6 +845,7 @@ async function startTemplateEdit(id){
     }
     loading(false);
     go('templateNew');
+    if(orphanedCount) toast(`注意: ${orphanedCount}件の項目で繰り返し行の情報が失われていたため、通常項目として復元しました。必要であれば再度グループ化してください。`, true);
   }catch(e){ loading(false); toast('読み込みに失敗しました: '+e.message, true); }
 }
 function viewTemplateNew(app){
