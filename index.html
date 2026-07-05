@@ -185,7 +185,10 @@
   .tabs{display:flex;gap:6px;background:#F3F4F6;padding:5px;border-radius:12px;width:max-content;margin-bottom:22px}
   .tabs button{border:none;background:none;padding:9px 18px;border-radius:9px;cursor:pointer;font-family:inherit;font-size:14px;font-weight:600;color:var(--muted)}
   .tabs button.on{background:#fff;color:var(--brand-ink);box-shadow:var(--shadow)}
-  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:10px 14px}
+  .form-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:6px 14px}
+  /* 「各項目を入力」画面（テンプレートの値入力欄）だけ、縦方向を詰めて画面の縦幅を抑える */
+  #fieldsAndGroups label.lbl{margin-bottom:2px}
+  #fieldsAndGroups textarea.val-input{padding:6px 10px;min-height:34px}
   .toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;box-shadow:var(--shadow);z-index:200;opacity:0;transition:.25s;pointer-events:none}
   .toast.show{opacity:1;transform:translateX(-50%) translateY(-4px)}
   .toast.err{background:var(--danger)}
@@ -273,7 +276,7 @@
    ※デプロイ時はここに /exec のURLを設定してください。
      UI上には表示されず、利用者からは見えません。
 ============================================================ */
-const GAS_URL = 'https://script.google.com/macros/s/AKfycbxxy3OqnHHirPXX07VgX998x5fy5N_xbJ97Nw12ZgOBe-rHJbRLWNwbhyHmzrtq9RVn1Q/exec';
+const GAS_URL = 'https://script.google.com/macros/s/AKfycbxdUu5uRNRa1VJ1i35OHkpIeEK0V1NnqbNWiLsnNdkfHfuyY3dTPm62gL1-tZrVSJtZJA/exec';
 /* ============================================================
    ストレージ層（localStorageを試し、使えなければメモリ保持）
    ※自分のサーバー/GASにホストすれば永続化されます
@@ -296,6 +299,7 @@ const state = {
   templates: Store.get('templates') || [],
   history: Store.get('history') || [],
   aiDefaultInstructions: Store.get('aiDefaultInstructions') || '',
+  aiFilenameFormat: Store.get('aiFilenameFormat') || '',
   // フォーマット作成中の一時データ
   draft: null,
   // 契約書作成中の一時データ
@@ -304,6 +308,7 @@ const state = {
 function saveTemplates(){ Store.set('templates', state.templates); }
 function saveHistory(){ Store.set('history', state.history); }
 function saveAiDefaultInstructions(){ Store.set('aiDefaultInstructions', state.aiDefaultInstructions); }
+function saveAiFilenameFormat(){ Store.set('aiFilenameFormat', state.aiFilenameFormat); }
 function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
 /* ============================================================
    アイコン（絵文字を廃止し、統一されたラインアイコンに置き換え）
@@ -334,6 +339,7 @@ function icon(name, size){
     checkSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',
     settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>',
+    search: '<circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line>',
     arrowUp: '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
     arrowDown: '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>'
   };
@@ -412,16 +418,24 @@ function viewAiSettings(app){
       <h1>AI設定</h1>
     </div>
     <div class="wrap" style="max-width:760px;margin:0;padding:0">
-      <div class="card">
-        <h2 style="font-size:16px;margin:0 0 6px">AIが常に考慮すべき事項</h2>
+      <div class="card" style="margin-bottom:20px">
+        <h2 style="font-size:16px;margin:0 0 6px">AI自動入力時の固定ルール</h2>
         <p class="hint" style="margin:0 0 14px">
-          ここに書いた内容は、契約書作成画面の「AI自動入力」にのみ自動的に付け加えられます
-          （「AIで自動マスク」「AIで項目名生成」には影響しません）。会社名の表記ルールや、
-          特定の項目の解釈の仕方など、入力値を読み取らせる際に毎回伝えたい前提をここに固定しておけます。
+          特定の項目の解釈の仕方など、入力値を読み取らせる際に毎回伝えたい前提を書いてください。
         </p>
-        <textarea id="aiDefaultInstructionsInput" style="min-height:220px" placeholder="例：\n・「甲」は常に委託者側、「乙」は受託者側です。\n・金額は税別で記載してください。\n・日付は西暦（20XX年）で統一してください。">${esc(state.aiDefaultInstructions||'')}</textarea>
+        <textarea id="aiDefaultInstructionsInput" style="min-height:138px" placeholder="例：\n・「甲」は常に委託者側、「乙」は受託者側です。\n・金額は税別で記載してください。\n・日付は西暦（20XX年）で統一してください。">${esc(state.aiDefaultInstructions||'')}</textarea>
         <div class="row end" style="margin-top:16px">
           <button class="btn" id="saveAiSettingsBtn">${icon('checkCircle',15)} 保存する</button>
+        </div>
+      </div>
+      <div class="card">
+        <h2 style="font-size:16px;margin:0 0 6px">AI自動ファイル名生成のルール</h2>
+        <p class="hint" style="margin:0 0 14px">
+          「内容を確認する」を押したときに、AIへ伝えるファイル名の付け方のルールを書いてください。
+        </p>
+        <textarea id="aiFilenameFormatInput" style="min-height:90px" placeholder="例：\n・「日付_甲の会社名_フォーマット名」の順で、アンダースコアで区切ってください。\n・日付はYYYYMMDD形式にしてください。">${esc(state.aiFilenameFormat||'')}</textarea>
+        <div class="row end" style="margin-top:16px">
+          <button class="btn" id="saveAiFilenameFormatBtn">${icon('checkCircle',15)} 保存する</button>
         </div>
       </div>
     </div>`;
@@ -429,6 +443,11 @@ function viewAiSettings(app){
     state.aiDefaultInstructions=document.getElementById('aiDefaultInstructionsInput').value;
     saveAiDefaultInstructions();
     toast('AI設定を保存しました');
+  };
+  document.getElementById('saveAiFilenameFormatBtn').onclick=()=>{
+    state.aiFilenameFormat=document.getElementById('aiFilenameFormatInput').value;
+    saveAiFilenameFormat();
+    toast('ファイル名の自動生成ルールを保存しました');
   };
 }
 /* ============================================================
@@ -465,13 +484,15 @@ function setUiSize(key, value){
   try{ localStorage.setItem('ui_'+key, String(Math.round(value))); }catch(e){}
 }
 /* ---- 汎用：要素の左右にドラッグして幅を変えられる仕切りを取り付ける ---- */
+/* invert: true の場合、対象要素が仕切りの右側にあるとみなし、カーソルを左に動かすと幅が広がるようにする
+   （対象要素が仕切りの左側にある場合はfalseのまま＝カーソルを右に動かすと幅が広がる） */
 function attachHResizer(resizerEl, targetEl, opts){
   if(!resizerEl || !targetEl) return;
-  const { min=200, max=800, storageKey } = opts||{};
+  const { min=200, max=800, storageKey, invert=false } = opts||{};
   let startX=0, startWidth=0;
   function onMove(e){
     const dx=e.clientX-startX;
-    let w=startWidth+dx;
+    let w=startWidth+(invert?-dx:dx);
     w=Math.max(min, Math.min(max, w));
     targetEl.style.width=w+'px';
   }
@@ -561,7 +582,7 @@ function renderMakeWorkarea(){
   document.getElementById('togglePreviewBtn').onclick=toggleMakePreview;
   if(showPreview){
     attachHResizer(document.getElementById('previewResizer'), document.getElementById('makePreviewPane'), {
-      min:280, max:900, storageKey:'previewWidth'
+      min:280, max:900, storageKey:'previewWidth', invert:true
     });
   }
   if(m.mode==='auto') renderAutoBox();
@@ -575,9 +596,9 @@ async function toggleMakePreview(){
   renderMakeWorkarea();
 }
 /* ---- 作成画面の書面プレビュー：テンプレートのファイルからHTMLを生成し、各マスクをハイライトできるようにする ---- */
-async function renderMakePreview(){
+async function renderMakePreview(containerId){
   const m=state.make, t=m.template;
-  const body=document.getElementById('makePreviewBody');
+  const body=document.getElementById(containerId||'makePreviewBody');
   if(!body) return;
   if(t.fileType!=='docx'){
     body.innerHTML='<div class="hint" style="padding:12px">Excel形式のフォーマットはプレビュー表示に対応していません。</div>';
@@ -908,6 +929,15 @@ async function startTemplateEdit(id){
     repeatGroups:(t.repeatGroups||[]).map(g=>({...g})),
     groupSelection:[],
     maskMode:'add', editId:t.id };
+  // anchorKey は前回の編集セッション時点のキーを指しているため、
+  // 変数のキーを振り直した今、そのグループの実際のメンバーを見つけて再設定する
+  // （一覧内の並び順に使うためのもので、放置すると常に無効な参照になってしまう）
+  d.repeatGroups.forEach(g=>{
+    const firstMemberName=g.memberPropNames[0];
+    const anchorVar=d.variables.find(v=>v.repeatGroupId===g.id && v.propName===firstMemberName)
+      || d.variables.find(v=>v.repeatGroupId===g.id);
+    g.anchorKey=anchorVar?anchorVar.key:null;
+  });
   state.draft=d;
   try{
     loading(true,'フォーマットを読み込み中…');
@@ -1890,6 +1920,12 @@ function computeVarSortKey(v){
 }
 function refreshVarList(){
   const d=state.draft;
+  // 実体（メンバーとなる変数）が1件も無い繰り返し行グループは、表示のたびに自動で取り除く。
+  // 何らかの理由でグループ定義だけが残ってしまった「中身が空のグループ」が
+  // 一覧に残り続けるのを防ぐための自己修復処理。
+  if(d.repeatGroups && d.repeatGroups.length){
+    d.repeatGroups=d.repeatGroups.filter(g=>d.variables.some(v=>v.repeatGroupId===g.id));
+  }
   document.getElementById('varCount').textContent=d.variables.length;
   const list=document.getElementById('varList');
   if(!d.variables.length){ list.innerHTML='<div class="empty">左側でマスクした部分がここに並びます。</div>'; renderGroupToolbar(); return; }
@@ -1932,6 +1968,39 @@ function syncGroupMemberName(d, v, oldName, newName){
   const idx=g.memberPropNames.indexOf(oldName);
   if(idx>=0) g.memberPropNames[idx]=newName;
 }
+/* 項目名を変更する共通処理。
+   「同じ値として結合」した項目は、内部的には同じ項目名を持つ複数の独立した変数（別のオブジェクト）
+   として保持されているため、1つの入力欄だけで v.propName を書き換えても、結合されている他の
+   出現箇所（別の入力欄）には反映されず、名前がずれてしまう不具合があった。
+   ここで、変更前の名前を持つ他のすべての変数にも同じ新しい名前を伝播させ、
+   （表示中であれば）対応する入力欄のDOM表示もその場で更新する。 */
+function renamePropName(d, v, newName){
+  const oldName=v.propName;
+  if(oldName===newName) return;
+  v.propName=newName;
+  syncGroupMemberName(d, v, oldName, newName);
+  if(oldName.trim()){
+    d.variables.forEach(other=>{
+      if(other===v || other.propName!==oldName) return;
+      other.propName=newName;
+      syncGroupMemberName(d, other, oldName, newName);
+      const inp=document.querySelector(`#varList [data-key="${CSS.escape(other.key)}"] input[type=text]`);
+      if(inp && inp.value!==newName) inp.value=newName;
+    });
+  }
+}
+// 「同じ値として結合」を解除する：この1件だけに新しい項目名を付け、他の結合相手には影響させない
+// （renamePropNameとは逆に、あえて他の同名項目へは伝播させない一回限りのリネーム）
+function unshareVar(d, v){
+  const oldName=v.propName;
+  const newName=(prompt('この項目だけ結合から外して、独立した項目にします。新しい項目名を入力してください', oldName?oldName+'（別項目）':'')||'').trim();
+  if(!newName) return;
+  if(newName===oldName){ toast('元の項目名と同じです。別の項目名を入力してください', true); return; }
+  v.propName=newName;
+  syncGroupMemberName(d, v, oldName, newName);
+  refreshVarList();
+  toast('この項目を独立させました');
+}
 // 通常（未グループ）の1項目ぶんのDOM要素を作る
 function buildVarItemEl(d, v, nameCounts){
   const item=document.createElement('div'); item.className='var-item'; item.dataset.key=v.key;
@@ -1939,7 +2008,10 @@ function buildVarItemEl(d, v, nameCounts){
   const checked = (d.groupSelection||[]).includes(v.key);
   const shareCount=nameCounts[v.propName.trim()]||0;
   const shareHint = shareCount>1
-    ? `<div class="hint" style="margin:2px 0 0;color:var(--brand)">${icon('grip',12)} 同じ項目名が他に${shareCount-1}件あります（生成時は1つの入力にまとまります）</div>`
+    ? `<div class="hint" style="margin:2px 0 0;color:var(--brand);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+         <span>${icon('grip',12)} 同じ項目名が他に${shareCount-1}件あります（生成時は1つの入力にまとまります）</span>
+         <button type="button" class="unshare-btn" style="padding:0;border:none;background:none;color:var(--brand-ink);text-decoration:underline;cursor:pointer;font-size:12px;font-family:inherit">この項目だけ独立させる</button>
+       </div>`
     : '';
   item.innerHTML=`
     <div class="var-item-body">
@@ -1954,10 +2026,12 @@ function buildVarItemEl(d, v, nameCounts){
       <input type="checkbox" class="grp-check" ${checked?'checked':''}>
     </div>`;
   item.querySelector('input[type=text]').oninput=e=>{
-    v.propName=e.target.value;
+    renamePropName(d, v, e.target.value);
     refreshMaskTitles();
   };
   item.querySelector('input[type=text]').onfocus=()=>highlightPreviewForVar(v.key);
+  const unshareBtn1=item.querySelector('.unshare-btn');
+  if(unshareBtn1) unshareBtn1.onclick=()=>unshareVar(d, v);
   item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
   const chk=item.querySelector('.grp-check');
   chk.onchange=()=>{
@@ -2003,7 +2077,10 @@ function buildGroupCardEl(d, g, nameCounts){
       row.style.cssText='margin:6px 0;padding-top:6px;border-top:1px dashed var(--line);display:flex;gap:10px;align-items:flex-start';
       const shareCount=nameCounts[v.propName.trim()]||0;
       const shareHint = shareCount>1
-        ? `<div class="hint" style="margin:2px 0 0;color:var(--brand)">${icon('grip',12)} 同じ項目名が他に${shareCount-1}件あります（生成時は1つの入力にまとまります）</div>`
+        ? `<div class="hint" style="margin:2px 0 0;color:var(--brand);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+             <span>${icon('grip',12)} 同じ項目名が他に${shareCount-1}件あります（生成時は1つの入力にまとまります）</span>
+             <button type="button" class="unshare-btn" style="padding:0;border:none;background:none;color:var(--brand-ink);text-decoration:underline;cursor:pointer;font-size:12px;font-family:inherit">この項目だけ独立させる</button>
+           </div>`
         : '';
       const checked=(d.groupSelection||[]).includes(v.key);
       row.innerHTML=`
@@ -2017,11 +2094,10 @@ function buildGroupCardEl(d, g, nameCounts){
         </div>`;
       const inp=row.querySelector('input[type=text]');
       inp.onfocus=()=>highlightPreviewForVar(v.key);
+      const unshareBtn2=row.querySelector('.unshare-btn');
+      if(unshareBtn2) unshareBtn2.onclick=()=>unshareVar(d, v);
       inp.oninput=e=>{
-        const oldName=v.propName;
-        const newName=e.target.value;
-        v.propName=newName;
-        syncGroupMemberName(d, v, oldName, newName); // 自分自身が属するグループのmemberPropNamesだけは必ず追従させる
+        renamePropName(d, v, e.target.value);
         refreshMaskTitles();
       };
       const chk=row.querySelector('.grp-check');
@@ -2365,6 +2441,7 @@ function renderAutoBox(){
   box.innerHTML=`
     <div class="card" style="margin-bottom:22px">
       <h2 style="font-size:16px">情報ソースを貼り付け</h2>
+      <div class="split">
       <div class="field">
         <label class="lbl">テキスト</label>
         <textarea id="srcText" placeholder="ここに契約内容が書かれた文章を貼り付けてください。">${esc(m.source||'')}</textarea>
@@ -2380,6 +2457,7 @@ function renderAutoBox(){
           <div id="thumbContainer">${imgPreviewHtml}</div>
         </div>
         <input type="file" id="srcImg" accept="image/*" style="display:none">
+      </div>
       </div>
       <div class="row end" style="margin-top:14px">
         <button class="btn accent" id="analyzeBtn">${icon('sparkles',14)} AIで解析</button>
@@ -2431,24 +2509,17 @@ async function analyzeSource(){
         if(values[v.propName] !== undefined && values[v.propName] !== '') m.values[v.propName]=values[v.propName];
       });
     }
-    // 繰り返し行：AIが「何件あるか」を判断して返した件数ぶん、行を追加してから埋める
-    // （例：担当者が2名見つかれば、1つの行に2人分詰め込むのではなく、行を2つに増やす）
-    // 既に手入力済みの値は上書きしない。
+    // 繰り返し行：AIが「何件あるか」を判断して返した件数ぶんに、行そのものを置き換える
+    // （例：担当者が2名見つかれば、1つの行に2人分詰め込むのではなく、行を2つに増やす。
+    //   解析をやり直した場合は、既存の内容も含めて新しい結果で上書きする）
     if(groupEntries){
       (t.repeatGroups||[]).forEach(g=>{
         const aiEntries=groupEntries[g.id];
         if(!Array.isArray(aiEntries) || !aiEntries.length) return;
-        const current=m.values.__groups[g.id];
-        while(current.length<aiEntries.length){
-          current.push(Object.fromEntries(g.memberPropNames.map(p=>[p,''])));
-        }
-        aiEntries.forEach((entryObj,i)=>{
-          const target=current[i];
-          if(!target) return;
-          g.memberPropNames.forEach(p=>{
-            const aiVal=(entryObj && entryObj[p]) || '';
-            if(aiVal && !target[p]) target[p]=aiVal;
-          });
+        m.values.__groups[g.id]=aiEntries.map(entryObj=>{
+          const e={};
+          g.memberPropNames.forEach(p=>{ e[p]=(entryObj && entryObj[p]) || ''; });
+          return e;
         });
       });
     }
@@ -2477,10 +2548,13 @@ function renderMakeFormFields(){
   if(!box) return;
   ensureGroupValues(m);
   box.innerHTML=`
-    <div class="card">
-      <h2 style="font-size:16px">各項目を入力</h2>
+    <div class="card" style="padding:18px 22px">
+      <div class="row" style="justify-content:space-between;align-items:center;margin-bottom:10px">
+        <h2 style="font-size:16px;margin:0">各項目を入力</h2>
+        <button class="btn ghost sm" id="numWidthBtn" title="入力済みの数字をまとめて全角・半角どちらかに揃えます">数字の全角/半角を統一</button>
+      </div>
       <div id="fieldsAndGroups"></div>
-      <div class="row end" style="margin-top:22px">
+      <div class="row end" style="margin-top:14px">
         <button class="btn" id="confirmBtn">内容を確認する →</button>
       </div>
     </div>`;
@@ -2499,15 +2573,20 @@ function renderMakeFormFields(){
   }
   items.forEach(it=>{
     if(it.type==='var'){
-      if(!pendingGrid){ pendingGrid=document.createElement('div'); pendingGrid.className='form-grid'; pendingGrid.style.marginBottom='16px'; }
+      if(!pendingGrid){ pendingGrid=document.createElement('div'); pendingGrid.className='form-grid'; pendingGrid.style.marginBottom='20px'; }
       const v=it.v;
       const f=document.createElement('div'); f.className='field'; f.style.margin='0';
-      f.innerHTML=`<label class="lbl">${esc(v.propName)}</label>
-        <textarea class="val-input" data-prop="${esc(v.propName)}" placeholder="${esc(v.originalText.slice(0,30))}">${esc(m.values[v.propName]||'')}</textarea>`;
+      const showLookup=looksLikeCompanyNameField(v.propName);
+      f.innerHTML=`<label class="lbl" style="display:flex;align-items:center;gap:4px"><span>${esc(v.propName)}</span>${showLookup?`<button type="button" class="icon-btn" id="lookup_${esc(v.key)}" title="会社名から法人情報（住所・代表者名）を検索" style="padding:0;width:14px;height:14px;min-width:14px;display:inline-flex;align-items:center;justify-content:center;flex:none">${icon('search',12)}</button>`:''}</label>
+        <textarea class="val-input" rows="1" data-prop="${esc(v.propName)}" placeholder="${esc(v.originalText.slice(0,30))}">${esc(m.values[v.propName]||'')}</textarea>`;
       const inp=f.querySelector('textarea');
       autoGrowTextarea(inp);
       inp.oninput=e=>{ propagateSharedValue(v.propName, e.target.value, null); autoGrowTextarea(e.target); };
       inp.onfocus=()=>highlightMakePreviewForProp(v.propName);
+      if(showLookup){
+        const lookupBtn=f.querySelector(`#lookup_${CSS.escape(v.key||'')}`);
+        if(lookupBtn) lookupBtn.onclick=()=>openCompanyLookupModal(v.propName);
+      }
       pendingGrid.appendChild(f);
     }else{
       flushGrid();
@@ -2516,6 +2595,93 @@ function renderMakeFormFields(){
   });
   flushGrid();
   document.getElementById('confirmBtn').onclick=openConfirm;
+  document.getElementById('numWidthBtn').onclick=openNumberWidthModal;
+}
+// 項目名から「会社名／法人名」を表す項目かどうかを推測する（法人情報検索ボタンの表示判定に使う）
+function looksLikeCompanyNameField(propName){
+  return /(会社名|法人名|商号|社名)/.test(propName);
+}
+function looksLikeAddressField(propName){
+  return /(住所|所在地)/.test(propName);
+}
+function looksLikeRepresentativeField(propName){
+  return /(代表者|代表取締役)/.test(propName);
+}
+// 「甲の会社名」→「甲の」のように、会社名項目のキーワードより前の部分を接頭辞として取り出す
+// （同じ接頭辞を持つ住所・代表者項目を優先的に紐づけるため）
+function companyFieldPrefix(propName){
+  const m=propName.match(/(会社名|法人名|商号|社名)/);
+  return m ? propName.slice(0, m.index) : '';
+}
+function findRelatedField(t, companyPropName, matcher){
+  const prefix=companyFieldPrefix(companyPropName);
+  const candidates=uniqueNonGroupVars(t).filter(v=>matcher(v.propName));
+  const samePrefix=candidates.find(v=>{
+    const m=v.propName.match(/(住所|所在地|代表者|代表取締役)/);
+    const p=m?v.propName.slice(0,m.index):'';
+    return p===prefix;
+  });
+  return samePrefix || candidates[0] || null;
+}
+// 会社名から法人情報（住所・代表者名）を検索するモーダル
+async function openCompanyLookupModal(companyPropName){
+  const m=state.make, t=m.template;
+  const companyName=(m.values[companyPropName]||'').trim();
+  if(!companyName){ toast('先に会社名を入力してください', true); return; }
+  if(!_gasPassword){ AuthGate.show(); return; }
+  const bd=document.getElementById('backdrop');
+  bd.innerHTML=`
+    <div class="modal" style="max-width:560px">
+      <div class="modal-head"><h2>法人情報の検索</h2><p class="hint" style="margin:4px 0 0">「${esc(companyName)}」について検索しています…</p></div>
+      <div class="modal-body" id="companyLookupBody" style="padding:20px">
+        <div class="hint">検索しています…</div>
+      </div>
+      <div class="row end" style="padding:0 20px 20px"><button class="btn ghost" id="companyLookupClose">閉じる</button></div>
+    </div>`;
+  bd.classList.add('show');
+  document.getElementById('companyLookupClose').onclick=()=>bd.classList.remove('show');
+  try{
+    const result=await callAI('lookupCompany', { companyName });
+    renderCompanyLookupResult(companyPropName, companyName, result);
+  }catch(e){
+    document.getElementById('companyLookupBody').innerHTML=`<div class="warnbox">検索に失敗しました: ${esc(e.message)}</div>`;
+  }
+}
+function renderCompanyLookupResult(companyPropName, companyName, result){
+  const body=document.getElementById('companyLookupBody');
+  if(!body) return;
+  const candidates=(result && result.candidates) || [];
+  if(!result || !result.found || !candidates.length){
+    body.innerHTML=`<div class="warnbox">見つかりませんでした</div>`;
+    return;
+  }
+  body.innerHTML=`
+    <div class="hint" style="margin:0 0 10px">${candidates.length>1?'複数の候補が見つかりました。反映するものを選んでください。':'見つかった内容を確認してください。'}</div>
+    <div id="companyCandidateList" style="display:flex;flex-direction:column;gap:10px"></div>`;
+  const list=document.getElementById('companyCandidateList');
+  candidates.forEach((c,i)=>{
+    const card=document.createElement('div');
+    card.style.cssText='border:1px solid var(--line);border-radius:10px;padding:12px';
+    card.innerHTML=`
+      <div style="font-weight:600;margin-bottom:4px">${esc(c.name||companyName)}</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:2px">住所: ${esc(c.address||'（不明）')}</div>
+      <div style="font-size:13px;color:var(--text-secondary);margin-bottom:8px">代表者: ${esc(c.representative||'（不明）')}</div>
+      ${c.sourceUrl?`<div style="font-size:12px;margin-bottom:8px">出典: <a href="${esc(c.sourceUrl)}" target="_blank" rel="noopener">${esc(c.sourceTitle||c.sourceUrl)}</a></div>`:''}
+      <button class="btn sm accent" data-apply="${i}">この内容を反映する</button>`;
+    card.querySelector('[data-apply]').onclick=()=>applyCompanyCandidate(companyPropName, c);
+    list.appendChild(card);
+  });
+}
+function applyCompanyCandidate(companyPropName, candidate){
+  const m=state.make, t=m.template;
+  if(candidate.name) m.values[companyPropName]=candidate.name;
+  const addrField=findRelatedField(t, companyPropName, looksLikeAddressField);
+  if(addrField && candidate.address) m.values[addrField.propName]=candidate.address;
+  const repField=findRelatedField(t, companyPropName, looksLikeRepresentativeField);
+  if(repField && candidate.representative) m.values[repField.propName]=candidate.representative;
+  document.getElementById('backdrop').classList.remove('show');
+  renderMakeFormFields();
+  toast('法人情報を反映しました');
 }
 // 繰り返しグループに属さない項目を、同じ項目名は1つにまとめて返す（同名＝同じ変数として扱うため）
 function uniqueNonGroupVars(t){
@@ -2536,17 +2702,17 @@ function groupMemberPropNameSet(t){
   return s;
 }
 function buildRowGroupCard(m, g){
-  const card=document.createElement('div'); card.className='card'; card.style.marginBottom='16px';
+  const card=document.createElement('div'); card.className='card'; card.style.cssText='margin-bottom:20px;padding:18px 22px';
   const entries=m.values.__groups[g.id];
   card.innerHTML=`<h3 style="font-size:15px;margin:0 0 4px">${esc(g.label)}（${entries.length}件）</h3>
-    <div class="hint" style="margin:0 0 10px">件数に応じて行を追加・削除できます。▲▼で順番を入れ替えられます。</div>
+    <div class="hint" style="margin:0 0 6px">件数に応じて行を追加・削除できます。▲▼で順番を入れ替えられます。</div>
     <div id="rg_${g.id}"></div>
-    <div class="row" style="margin-top:8px"><button class="btn ghost sm" id="rgAdd_${g.id}">＋ 追加</button></div>`;
+    <div class="row" style="margin-top:6px"><button class="btn ghost sm" id="rgAdd_${g.id}">＋ 追加</button></div>`;
   const list=card.querySelector(`#rg_${g.id}`);
   entries.forEach((entry,idx)=>{
-    const row=document.createElement('div'); row.style.cssText='margin-bottom:10px;padding:10px;border:1px solid var(--line);border-radius:10px;position:relative';
+    const row=document.createElement('div'); row.style.cssText='margin-bottom:8px;padding:8px;border:1px solid var(--line);border-radius:10px;position:relative';
     const headerRow=document.createElement('div');
-    headerRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:8px';
+    headerRow.style.cssText='display:flex;align-items:center;justify-content:space-between;margin-bottom:6px';
     headerRow.innerHTML=`
       <span class="pill" style="background:var(--brand-soft);color:var(--brand-ink)">${idx+1}件目</span>
       <div class="row" style="gap:4px;margin:0">
@@ -2557,7 +2723,7 @@ function buildRowGroupCard(m, g){
     const fieldsGrid=document.createElement('div'); fieldsGrid.className='form-grid';
     fieldsGrid.innerHTML = g.memberPropNames.map(p=>`
       <div class="field" style="margin:0"><label class="lbl">${esc(p)}</label>
-        <textarea class="val-input" data-p="${esc(p)}">${esc(entry[p]||'')}</textarea></div>`).join('')
+        <textarea class="val-input" rows="1" data-p="${esc(p)}">${esc(entry[p]||'')}</textarea></div>`).join('')
       + (entries.length>1?`<div class="row end" style="grid-column:1/-1;margin:0"><button class="btn danger sm" data-rm="1">この行を削除</button></div>`:'');
     row.appendChild(fieldsGrid);
     fieldsGrid.querySelectorAll('textarea').forEach(inp=>{
@@ -2608,36 +2774,64 @@ function buildRowGroupCard(m, g){
   return card;
 }
 /* ============================================================
+   数字の全角/半角を統一（入力済みの値をまとめて変換）
+============================================================ */
+function toFullWidthDigits(s){ return String(s).replace(/[0-9]/g, c=>String.fromCharCode(c.charCodeAt(0)+0xFEE0)); }
+function toHalfWidthDigits(s){ return String(s).replace(/[０-９]/g, c=>String.fromCharCode(c.charCodeAt(0)-0xFEE0)); }
+function openNumberWidthModal(){
+  const bd=document.getElementById('backdrop');
+  bd.innerHTML=`
+    <div class="modal" style="max-width:420px">
+      <div class="modal-head"><h2>数字の全角/半角を統一</h2><p class="hint" style="margin:4px 0 0">入力済みのすべての項目の数字を、選んだ方に揃えます。</p></div>
+      <div class="modal-body" style="display:flex;flex-direction:column;gap:10px">
+        <button class="btn ghost" id="numWidthFull" style="justify-content:flex-start">全角にする（例：１２３）</button>
+        <button class="btn ghost" id="numWidthHalf" style="justify-content:flex-start">半角にする（例：123）</button>
+      </div>
+      <div class="row end" style="padding:0 20px 20px"><button class="btn ghost" id="numWidthCancel">キャンセル</button></div>
+    </div>`;
+  bd.classList.add('show');
+  document.getElementById('numWidthCancel').onclick=()=>bd.classList.remove('show');
+  document.getElementById('numWidthFull').onclick=()=>{ applyNumberWidthUnify('full'); bd.classList.remove('show'); };
+  document.getElementById('numWidthHalf').onclick=()=>{ applyNumberWidthUnify('half'); bd.classList.remove('show'); };
+}
+function applyNumberWidthUnify(mode){
+  const m=state.make;
+  const conv = mode==='full' ? toFullWidthDigits : toHalfWidthDigits;
+  Object.keys(m.values).forEach(k=>{
+    if(k==='__groups') return;
+    if(typeof m.values[k]==='string') m.values[k]=conv(m.values[k]);
+  });
+  if(m.values.__groups){
+    Object.keys(m.values.__groups).forEach(gid=>{
+      (m.values.__groups[gid]||[]).forEach(entry=>{
+        Object.keys(entry).forEach(p=>{ entry[p]=conv(entry[p]||''); });
+      });
+    });
+  }
+  renderMakeFormFields();
+  if(m.showPreview) renderMakePreview();
+  toast(mode==='full' ? '数字を全角に統一しました' : '数字を半角に統一しました');
+}
+/* ============================================================
    内容確認ダイアログ → 出力
 ============================================================ */
 function openConfirm(){
   const m=state.make, t=m.template;
   const bd=document.getElementById('backdrop');
-  const rows=uniqueNonGroupVars(t).map(v=>`
-    <div class="confirm-row">
-      <div class="k">${esc(v.propName)}</div>
-      <textarea class="val-input" data-prop="${esc(v.propName)}">${esc(m.values[v.propName]||'')}</textarea>
-    </div>`).join('');
-  const groupSummary=(t.repeatGroups||[]).map(g=>{
-    const gv=m.values.__groups && m.values.__groups[g.id];
-    if(!gv) return '';
-    const n = gv.length;
-    return `<div class="confirm-row"><div class="k">${esc(g.label)}</div><div>${esc(String(n))}</div></div>`;
-  }).join('');
-  
-  // 初期ファイル名をセット
+  // 初期ファイル名をセット（AI生成が使えない/失敗した場合はこのまま）
   const defaultFilename = m.outputFilename || t.name;
   bd.innerHTML=`
-    <div class="modal">
-      <div class="modal-head"><h2>内容の確認</h2><p class="hint" style="margin:4px 0 0">このまま出力します。必要なら修正してください。</p></div>
+    <div class="modal" style="max-width:680px">
+      <div class="modal-head"><h2>内容の確認</h2><p class="hint" style="margin:4px 0 0">このまま出力します。修正が必要な場合は「修正に戻る」から入力画面に戻ってください。</p></div>
       <div class="modal-body">
         <div class="field" style="margin-bottom:20px; background:var(--brand-soft); padding:14px; border-radius:10px;">
-          <label class="lbl" style="color:var(--brand-ink)">${icon('fileCheck',15)} 出力ファイル名（拡張子は自動付与）</label>
+          <label class="lbl" style="color:var(--brand-ink)">${icon('fileCheck',15)} 出力ファイル名（拡張子は自動付与）<span class="hint" id="filenameAiStatus" style="margin:0 0 0 6px"></span></label>
           <input type="text" id="outputFilenameInput" value="${esc(defaultFilename)}" placeholder="ファイル名を入力">
         </div>
-        <h3>入力項目</h3>
-        ${rows}
-        ${groupSummary}
+        <div class="preview-pane" style="box-shadow:none">
+          <div class="pane-head"><span class="t">書面プレビュー</span></div>
+          <div id="confirmPreviewBody" class="docx-preview" style="max-height:50vh;overflow-y:auto"></div>
+        </div>
       </div>
       <div class="modal-foot">
         <button class="btn ghost" id="cancelC">修正に戻る</button>
@@ -2648,10 +2842,7 @@ function openConfirm(){
   
   const fnInput = document.getElementById('outputFilenameInput');
   fnInput.oninput = e => { m.outputFilename = e.target.value; };
-  bd.querySelectorAll('textarea[data-prop]').forEach(inp=>{
-    autoGrowTextarea(inp);
-    inp.oninput=e=>{ m.values[e.target.dataset.prop]=e.target.value; autoGrowTextarea(e.target); };
-  });
+  renderMakePreview('confirmPreviewBody');
   document.getElementById('cancelC').onclick=()=>{ bd.classList.remove('show'); renderMakeFormFields(); };
   document.getElementById('doneC').onclick=async()=>{ 
     const finalFilename = sanitizeFilename(m.outputFilename || t.name);
@@ -2659,6 +2850,32 @@ function openConfirm(){
     await generateOutput(finalFilename); 
     renderMakeFormFields(); 
   };
+  // AIにログイン済みの場合のみ、入力済み内容からファイル名を自動生成する（未認証時は何もしない＝従来どおり）
+  if(gasReady() && _gasPassword) autoGenerateOutputFilename(m, t);
+}
+async function autoGenerateOutputFilename(m, t){
+  const statusEl=document.getElementById('filenameAiStatus');
+  const fnInput=document.getElementById('outputFilenameInput');
+  if(statusEl) statusEl.innerHTML=`<span class="spinner" style="width:11px;height:11px;border-color:var(--brand-soft);border-top-color:var(--brand)"></span> AIがファイル名を考えています…`;
+  try{
+    const payload={
+      templateName: t.name,
+      variables: uniqueNonGroupVars(t).map(v=>({ propName:v.propName, value:m.values[v.propName]||'' })),
+      groups: (t.repeatGroups||[]).map(g=>({ label:g.label, entries:(m.values.__groups && m.values.__groups[g.id])||[] })),
+      formatInstructions: state.aiFilenameFormat || ''
+    };
+    const data=await callAI('generateFilename', payload);
+    // ダイアログが閉じられていたら反映しない
+    if(!fnInput || !document.body.contains(fnInput)) return;
+    if(data && data.filename){
+      m.outputFilename = data.filename;
+      fnInput.value = data.filename;
+    }
+    if(statusEl) statusEl.textContent='';
+  }catch(e){
+    if(statusEl) statusEl.textContent='';
+    // 自動生成に失敗しても、手入力のファイル名でそのまま続行できるようにする（無言で従来動作にフォールバック）
+  }
 }
 async function generateOutput(filename){
   const m=state.make, t=m.template;
