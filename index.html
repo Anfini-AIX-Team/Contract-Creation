@@ -1480,6 +1480,26 @@ function refreshVarList(){
   renderGroupToolbar();
   refreshMaskTitles();
 }
+/* 項目名をリネームし、「同じ値」として結合されている他の項目（グループ内外・別グループ問わず）の
+   名前と、関連する繰り返し行グループの memberPropNames もまとめて追従させる */
+function renameVariableAndSync(d, v, newName){
+  const oldName=v.propName;
+  v.propName=newName;
+  syncGroupMemberName(d, v, oldName, newName);
+  if(!oldName.trim()) return;
+  d.variables.forEach(other=>{
+    if(other===v || other.propName!==oldName) return;
+    other.propName=newName;
+    syncGroupMemberName(d, other, oldName, newName);
+  });
+}
+function syncGroupMemberName(d, v, oldName, newName){
+  if(!v.repeatGroupId) return;
+  const g=(d.repeatGroups||[]).find(x=>x.id===v.repeatGroupId);
+  if(!g) return;
+  const idx=g.memberPropNames.indexOf(oldName);
+  if(idx>=0) g.memberPropNames[idx]=newName;
+}
 // 通常（未グループ）の1項目ぶんのDOM要素を作る
 function buildVarItemEl(d, v, nameCounts){
   const item=document.createElement('div'); item.className='var-item'; item.dataset.key=v.key;
@@ -1501,7 +1521,10 @@ function buildVarItemEl(d, v, nameCounts){
     <div class="grp-check-col" title="行グループ化／同じ値として結合する項目を選ぶ">
       <input type="checkbox" class="grp-check" ${checked?'checked':''}>
     </div>`;
-  item.querySelector('input[type=text]').oninput=e=>{ v.propName=e.target.value; refreshMaskTitles(); };
+  item.querySelector('input[type=text]').oninput=e=>{
+    renameVariableAndSync(d, v, e.target.value);
+    refreshMaskTitles();
+  };
   item.querySelector('input[type=text]').onfocus=()=>highlightPreviewForVar(v.key);
   item.querySelector('.icon-btn').onclick=()=>removeVar(v.key);
   const chk=item.querySelector('.grp-check');
@@ -1563,10 +1586,7 @@ function buildGroupCardEl(d, g, nameCounts){
       const inp=row.querySelector('input[type=text]');
       inp.onfocus=()=>highlightPreviewForVar(v.key);
       inp.oninput=e=>{
-        const newName=e.target.value;
-        const idx=g.memberPropNames.indexOf(v.propName);
-        v.propName=newName;
-        if(idx>=0) g.memberPropNames[idx]=newName;
+        renameVariableAndSync(d, v, e.target.value);
         refreshMaskTitles();
       };
       const chk=row.querySelector('.grp-check');
