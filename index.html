@@ -557,7 +557,7 @@ function renderSideTplList(){
 }
 function selectMakeTemplate(t){
   const already=state.make && state.make.template && state.make.template.id===t.id;
-  if(!already){ state.make={ template:t, mode:'manual', values:{}, source:'', image:null }; }
+  if(!already){ state.make={ template:t, mode:'auto', values:{}, source:'', image:null }; }
   renderSideTplList();
   renderMakeWorkarea();
 }
@@ -573,8 +573,8 @@ function renderMakeWorkarea(){
   const t=m.template;
   const showPreview=!!m.showPreview;
   box.innerHTML=`
-    <div class="row" style="justify-content:space-between;align-items:center">
-      <h2 style="margin:0 0 0 8px;font-size:18px">${esc(t.name)}</h2>
+    <div>
+      <h2 style="margin:0 0 10px 8px;font-size:18px">${esc(t.name)}</h2>
       <div class="row" style="gap:8px">
         <span class="pill">${t.fileType==='docx'?'.docx':'.xlsx'}</span>
         <button class="btn ghost sm" id="togglePreviewBtn">${icon('eye',14)} ${showPreview?'書面プレビューを隠す':'書面プレビューを表示'}</button>
@@ -582,8 +582,8 @@ function renderMakeWorkarea(){
       </div>
     </div>
     <div class="tabs" style="margin-top:14px;margin-bottom:0">
-      <button class="${m.mode==='manual'?'on':''}" onclick="switchMode('manual')">${icon('keyboard',14)} 手動入力</button>
       <button class="${m.mode==='auto'?'on':''}" onclick="switchMode('auto')">${icon('sparkles',14)} AI自動入力</button>
+      <button class="${m.mode==='manual'?'on':''}" onclick="switchMode('manual')">${icon('keyboard',14)} 手動入力</button>
     </div>
     <div id="autoBox"></div>
     <div class="${showPreview?'make-split':''}" style="margin-top:0">
@@ -902,7 +902,7 @@ function viewTemplates(app){
       <button class="btn ghost sm dupBtn" title="複製">${icon('copy',14)} 複製</button>
       <button class="btn ghost sm editBtn" title="編集">${icon('pencil',14)} 編集</button>
       <button class="icon-btn delBtn" title="削除">${icon('trash',16)}</button>`;
-    d.querySelector('.tpl-meta').onclick=()=>{ state.make={template:t, mode:'manual', values:{}, source:'', image:null}; go('home'); };
+    d.querySelector('.tpl-meta').onclick=()=>{ state.make={template:t, mode:'auto', values:{}, source:'', image:null}; go('home'); };
     d.querySelector('.dupBtn').onclick=(e)=>{ e.stopPropagation(); duplicateTemplate(t.id); };
     d.querySelector('.editBtn').onclick=(e)=>{ e.stopPropagation(); startTemplateEdit(t.id); };
     d.querySelector('.delBtn').onclick=(e)=>{ e.stopPropagation(); if(confirm(`「${t.name}」を削除しますか？`)){
@@ -2779,6 +2779,22 @@ function ensureGroupValues(m){
     m.values.__groups[g.id] = [ Object.fromEntries(g.memberPropNames.map(p=>[p,''])) ];
   });
 }
+// 値入力欄（val-input）で、素のEnterは次の変数の入力欄へ移動、Shift+Enterは欄内で改行する。
+// （表計算ソフトのセル内改行と同じ操作感に合わせるため）
+function attachEnterToNextFieldNav(inp){
+  inp.addEventListener('keydown', e=>{
+    if(e.key!=='Enter' || e.shiftKey || e.isComposing) return; // Shift+Enterや変換確定中のEnterはそのまま（改行）
+    e.preventDefault();
+    const all=[...document.querySelectorAll('#fieldsAndGroups textarea.val-input')];
+    const idx=all.indexOf(inp);
+    const next=all[idx+1];
+    if(next){
+      next.focus();
+      const len=next.value.length;
+      if(next.setSelectionRange) next.setSelectionRange(len, len);
+    }
+  });
+}
 // 値入力用のtextareaを、内容の行数に応じて自動で高さを伸ばす（改行入力に対応するため）
 function autoGrowTextarea(el){
   if(!el) return;
@@ -2827,6 +2843,7 @@ function renderMakeFormFields(){
       autoGrowTextarea(inp);
       inp.oninput=e=>{ propagateSharedValue(v.propName, e.target.value, null); autoGrowTextarea(e.target); };
       inp.onfocus=()=>highlightMakePreviewForProp(v.propName);
+      attachEnterToNextFieldNav(inp);
       if(showLookup){
         const lookupBtn=f.querySelector(`#lookup_${CSS.escape(v.key||'')}`);
         if(lookupBtn) lookupBtn.onclick=()=>openCompanyLookupModal(v.propName);
@@ -2975,6 +2992,7 @@ function buildRowGroupCard(m, g){
       autoGrowTextarea(inp);
       inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; propagateSharedValue(e.target.dataset.p, e.target.value, g.id, idx); autoGrowTextarea(e.target); };
       inp.onfocus=e=>{ setActiveGroupEntry(g.id, idx); highlightMakePreviewForProp(e.target.dataset.p); };
+      attachEnterToNextFieldNav(inp);
     });
     const rm=fieldsGrid.querySelector('[data-rm]');
     if(rm) rm.onclick=()=>{
