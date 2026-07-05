@@ -653,6 +653,31 @@ function updateMakePreviewValue(propName, value){
     el.textContent = value || el.dataset.orig || '';
   });
 }
+// 「同じ値」として結合されている項目は、どこか1箇所に入力すると他の全ての入力欄にも自動反映する。
+// - 通常項目どうしは元々1つの入力欄にまとまっているのでそのまま。
+// - 繰り返し行のメンバー項目名が、他の通常項目や別の繰り返し行のメンバーと同じ場合、
+//   そちらの「選択中エントリ」の値と、画面に表示されている入力欄（DOM）も書き換える。
+function propagateSharedValue(propName, value, sourceGroupId){
+  const m=state.make, t=m.template;
+  m.values[propName]=value;
+  // 通常項目の入力欄（自分自身以外に表示されていれば）を更新
+  document.querySelectorAll(`#fieldsAndGroups input[data-prop="${CSS.escape(propName)}"]`).forEach(inp=>{
+    if(inp.value!==value) inp.value=value;
+  });
+  // 他の繰り返し行グループにも同じ項目名のメンバーがあれば、選択中エントリの値とDOM表示も同期する
+  (t.repeatGroups||[]).forEach(g=>{
+    if(g.id===sourceGroupId) return;
+    if(!g.memberPropNames.includes(propName)) return;
+    const entries=m.values.__groups && m.values.__groups[g.id];
+    if(!entries || !entries.length) return;
+    const idx=(m.activeGroupEntryIndex && m.activeGroupEntryIndex[g.id]) || 0;
+    entries[idx][propName]=value;
+    const groupListEl=document.getElementById('rg_'+g.id);
+    const target=groupListEl ? [...groupListEl.querySelectorAll(`input[data-p="${CSS.escape(propName)}"]`)][idx] : null;
+    if(target && target.value!==value) target.value=value;
+  });
+  updateMakePreviewValue(propName, value);
+}
 // 繰り返し行のどのエントリを編集中かを覚えておき、そのエントリの値をプレビューに反映する
 function setActiveGroupEntry(groupId, idx){
   const m=state.make;
@@ -998,6 +1023,7 @@ function buildMaskArea(){
 /* ---- マスクモード（鉛筆＝追加 / 消しゴム＝除去）---- */
 function setMaskMode(mode){
   state.draft.maskMode = (mode==='erase'||mode==='select') ? mode : 'add';
+  clearGroupSelection();
   applyMaskModeUI();
 }
 function applyMaskModeUI(){
@@ -1378,6 +1404,20 @@ function selectVariableInList(key){
     item.scrollIntoView({block:'nearest', behavior:'smooth'});
     const inp=item.querySelector('.prop-row input[type=text]');
     if(inp){ inp.focus(); inp.select(); }
+    return;
+  }
+  // 通常項目として見つからない場合：繰り返し行グループのメンバーである可能性を確認する。
+  // トグルが閉じていても自動では開かず、グループのカードまでスクロール／ハイライトするだけにとどめる。
+  const v=d.variables.find(x=>x.key===key);
+  if(v && v.repeatGroupId){
+    const card=document.querySelector(`#varList .group-card[data-group-id="${CSS.escape(v.repeatGroupId)}"]`);
+    if(card){
+      card.classList.add('selected');
+      card.scrollIntoView({block:'nearest', behavior:'smooth'});
+      // すでに開いている場合は、該当メンバーの入力欄まで直接フォーカスする
+      const memberInput=card.querySelector(`.grp-member-row[data-key="${CSS.escape(key)}"] input[type=text]`);
+      if(memberInput){ memberInput.focus(); memberInput.select(); }
+    }
   }
 }
 /* ---- 変数リスト ---- */
@@ -1479,7 +1519,7 @@ function buildVarItemEl(d, v, nameCounts){
 }
 // 繰り返し行グループぶんのカードを作る（開くとメンバーを個別に編集できる）
 function buildGroupCardEl(d, g, nameCounts){
-  const card=document.createElement('div'); card.className='var-item group-card'; card.style.background='var(--brand-soft)';
+  const card=document.createElement('div'); card.className='var-item group-card'; card.dataset.groupId=g.id; card.style.background='var(--brand-soft)';
   const expanded=d.expandedGroups.has(g.id);
   const members=g.memberPropNames.map(p=>d.variables.find(v=>v.repeatGroupId===g.id && v.propName===p)).filter(Boolean);
   const head=document.createElement('div'); head.className='var-item-body';
@@ -1562,7 +1602,7 @@ function renderGroupToolbar(){
   if(canRowGroup){
     html+=`<button class="btn sm accent" id="mkRowGroupBtn" title="選択項目: ${esc(selVars.map(v=>v.propName).join(' → '))}">行グループとして設定</button>`;
   }
-  box.innerHTML=html;
+  box.innerHTML=html+`<button class="btn sm ghost" id="clearSelBtn" title="選択をすべて解除">${icon('x',14)} 選択解除（${sel.length}）</button>`;
   const sb=document.getElementById('mkSharedBtn');
   if(sb) sb.onclick=()=>mergeAsSharedValue(sel);
   const rb=document.getElementById('mkRowGroupBtn');
@@ -1571,6 +1611,15 @@ function renderGroupToolbar(){
     const orderedVars=[...selVars].sort((a,b)=>computeVarSortKey(a)-computeVarSortKey(b));
     createRowGroup(orderedVars.map(v=>v.key));
   };
+  document.getElementById('clearSelBtn').onclick=clearGroupSelection;
+}
+// 選択（チェック）をすべて解除する
+function clearGroupSelection(){
+  const d=state.draft;
+  if(!d.groupSelection || !d.groupSelection.length) return;
+  d.groupSelection=[];
+  document.querySelectorAll('#varList .grp-check').forEach(chk=>{ chk.checked=false; });
+  onGroupSelectionChanged();
 }
 // 選択された項目を、すべて同じ項目名にそろえて「同じ値」として結合する
 function mergeAsSharedValue(keys){
@@ -1952,7 +2001,7 @@ function renderMakeFormFields(){
       const f=document.createElement('div'); f.className='field'; f.style.margin='0';
       f.innerHTML=`<label class="lbl">${esc(v.propName)}</label>
         <input type="text" data-prop="${esc(v.propName)}" value="${esc(m.values[v.propName]||'')}" placeholder="${esc(v.originalText.slice(0,30))}">`;
-      f.querySelector('input').oninput=e=>{ m.values[v.propName]=e.target.value; updateMakePreviewValue(v.propName, e.target.value); };
+      f.querySelector('input').oninput=e=>{ propagateSharedValue(v.propName, e.target.value, null); };
       f.querySelector('input').onfocus=()=>highlightMakePreviewForProp(v.propName);
       pendingGrid.appendChild(f);
     }else{
@@ -2007,7 +2056,7 @@ function buildRowGroupCard(m, g){
       + (entries.length>1?`<div class="row end" style="grid-column:1/-1;margin:0"><button class="btn danger sm" data-rm="1">この行を削除</button></div>`:'');
     row.appendChild(fieldsGrid);
     fieldsGrid.querySelectorAll('input').forEach(inp=>{
-      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; updateMakePreviewValue(e.target.dataset.p, e.target.value); };
+      inp.oninput=e=>{ entry[e.target.dataset.p]=e.target.value; propagateSharedValue(e.target.dataset.p, e.target.value, g.id); };
       inp.onfocus=e=>{ setActiveGroupEntry(g.id, idx); highlightMakePreviewForProp(e.target.dataset.p); };
     });
     const rm=fieldsGrid.querySelector('[data-rm]');
