@@ -244,6 +244,7 @@
   <div class="header-right" id="headerRightSlot">
     <button class="link-btn" onclick="go('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>生成履歴</button>
     <button class="link-btn" onclick="go('templates')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>フォーマット管理</button>
+    <button class="link-btn" onclick="go('companyProfile')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M3 21h18"></path><path d="M5 21V7l7-4 7 4v14"></path><path d="M9 21v-6h6v6"></path></svg>自社情報</button>
     <button class="link-btn" onclick="go('aiSettings')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>AI設定</button>
     <span id="authStatusText" style="font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;"></span>
     <button onclick="AuthGate.show()" style="height:28px;box-sizing:border-box;background:none;border:1px solid var(--border);border-radius:6px;padding:0 10px;font-size:11px;cursor:pointer;color:var(--text-secondary);display:inline-flex;align-items:center;">変更</button>
@@ -302,6 +303,11 @@ const state = {
   history: Store.get('history') || [],
   aiDefaultInstructions: Store.get('aiDefaultInstructions') || '',
   aiFilenameFormat: Store.get('aiFilenameFormat') || '',
+  // 自社情報（このブラウザに固定で保存しておき、フォーマットの「自社側」項目に自動で使う）
+  companyProfile: Store.get('companyProfile') || {
+    defaultRole:'', name:'', postalCode:'', address:'', repTitle:'代表取締役', repName:'',
+    personName:'', tel:'', email:'', invoiceNo:''
+  },
   // フォーマット作成中の一時データ
   draft: null,
   // 契約書作成中の一時データ
@@ -311,6 +317,7 @@ function saveTemplates(){ Store.set('templates', state.templates); }
 function saveHistory(){ Store.set('history', state.history); }
 function saveAiDefaultInstructions(){ Store.set('aiDefaultInstructions', state.aiDefaultInstructions); }
 function saveAiFilenameFormat(){ Store.set('aiFilenameFormat', state.aiFilenameFormat); }
+function saveCompanyProfile(){ Store.set('companyProfile', state.companyProfile); }
 function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
 /* ============================================================
    アイコン（絵文字を廃止し、統一されたラインアイコンに置き換え）
@@ -410,7 +417,7 @@ function render(view, arg){
   app.innerHTML='';
   ({ home:viewHome, templates:viewTemplates,
      templateNew:viewTemplateNew, history:viewHistory, aiSettings:viewAiSettings,
-     aiNewFormat:viewAiNewFormat }[view]||viewHome)(app, arg);
+     aiNewFormat:viewAiNewFormat, companyProfile:viewCompanyProfile }[view]||viewHome)(app, arg);
 }
 /* ============================================================
    画面：AI設定（常に考慮すべき事項の既定文を保存し、AI自動入力にのみ付与する）
@@ -451,6 +458,66 @@ function viewAiSettings(app){
     state.aiFilenameFormat=document.getElementById('aiFilenameFormatInput').value;
     saveAiFilenameFormat();
     toast('ファイル名の自動生成ルールを保存しました');
+  };
+}
+/* ============================================================
+   画面：自社情報（このブラウザに固定で保存し、フォーマットの「自社側」項目に自動反映する）
+============================================================ */
+function viewCompanyProfile(app){
+  const p=state.companyProfile;
+  app.innerHTML=`
+    <div class="page-head">
+      <h1>自社情報</h1>
+    </div>
+    <p class="hint" style="margin:0 0 18px;max-width:640px">
+      ここで登録した内容は、フォーマットの「自社側」に設定した項目（会社名・住所・代表者など）へ、
+      契約書を作成するたびに自動で入力されます。相手方の情報は毎回入力する情報ソースから読み取られます。
+    </p>
+    <div class="wrap" style="max-width:640px;margin:0;padding:0">
+      <div class="card" style="margin-bottom:20px">
+        <h2 style="font-size:16px;margin:0 0 6px">基本の立場</h2>
+        <p class="hint" style="margin:0 0 14px">新しいフォーマットを作るときの「自社の立場」の初期値です（都度変更もできます）。</p>
+        <select id="cpDefaultRole" style="max-width:280px">
+          <option value="">未設定（都度選ぶ）</option>
+          <option value="委託者" ${p.defaultRole==='委託者'?'selected':''}>委託者側（発注する側）</option>
+          <option value="受託者" ${p.defaultRole==='受託者'?'selected':''}>受託者側（受注する側）</option>
+        </select>
+      </div>
+      <div class="card">
+        <h2 style="font-size:16px;margin:0 0 14px">自社の情報</h2>
+        <div class="field"><label class="lbl">会社名</label><input type="text" id="cpName" value="${esc(p.name)}" placeholder="例：株式会社サンプル"></div>
+        <div class="field"><label class="lbl">郵便番号</label><input type="text" id="cpPostalCode" value="${esc(p.postalCode)}" placeholder="例：100-0001"></div>
+        <div class="field"><label class="lbl">住所</label><input type="text" id="cpAddress" value="${esc(p.address)}" placeholder="例：東京都千代田区〇〇1-2-3"></div>
+        <div class="row" style="gap:12px">
+          <div class="field" style="flex:1"><label class="lbl">代表者の肩書</label><input type="text" id="cpRepTitle" value="${esc(p.repTitle)}" placeholder="例：代表取締役"></div>
+          <div class="field" style="flex:1"><label class="lbl">代表者氏名</label><input type="text" id="cpRepName" value="${esc(p.repName)}" placeholder="例：山田 太郎"></div>
+        </div>
+        <div class="field"><label class="lbl">担当者名</label><input type="text" id="cpPersonName" value="${esc(p.personName)}" placeholder="例：山田 花子"></div>
+        <div class="row" style="gap:12px">
+          <div class="field" style="flex:1"><label class="lbl">電話番号</label><input type="text" id="cpTel" value="${esc(p.tel)}" placeholder="例：03-1234-5678"></div>
+          <div class="field" style="flex:1"><label class="lbl">メールアドレス</label><input type="text" id="cpEmail" value="${esc(p.email)}" placeholder="例：info@example.com"></div>
+        </div>
+        <div class="field"><label class="lbl">インボイス登録番号</label><input type="text" id="cpInvoiceNo" value="${esc(p.invoiceNo)}" placeholder="例：T1234567890123"></div>
+        <div class="row end" style="margin-top:16px">
+          <button class="btn" id="saveCompanyProfileBtn">${icon('checkCircle',15)} 保存する</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('saveCompanyProfileBtn').onclick=()=>{
+    state.companyProfile={
+      defaultRole: document.getElementById('cpDefaultRole').value,
+      name: document.getElementById('cpName').value.trim(),
+      postalCode: document.getElementById('cpPostalCode').value.trim(),
+      address: document.getElementById('cpAddress').value.trim(),
+      repTitle: document.getElementById('cpRepTitle').value.trim(),
+      repName: document.getElementById('cpRepName').value.trim(),
+      personName: document.getElementById('cpPersonName').value.trim(),
+      tel: document.getElementById('cpTel').value.trim(),
+      email: document.getElementById('cpEmail').value.trim(),
+      invoiceNo: document.getElementById('cpInvoiceNo').value.trim()
+    };
+    saveCompanyProfile();
+    toast('自社情報を保存しました');
   };
 }
 /* ============================================================
@@ -559,7 +626,11 @@ function renderSideTplList(){
 }
 function selectMakeTemplate(t){
   const already=state.make && state.make.template && state.make.template.id===t.id;
-  if(!already){ state.make={ template:t, mode:'auto', values:{}, source:'', image:null }; }
+  if(!already){
+    const values={};
+    autoFillSelfFields(t, values);
+    state.make={ template:t, mode:'auto', values, source:'', image:null };
+  }
   renderSideTplList();
   renderMakeWorkarea();
 }
@@ -933,7 +1004,7 @@ function viewTemplates(app){
       <button class="btn ghost sm dupBtn" title="複製">${icon('copy',14)} 複製</button>
       <button class="btn ghost sm editBtn" title="編集">${icon('pencil',14)} 編集</button>
       <button class="icon-btn delBtn" title="削除">${icon('trash',16)}</button>`;
-    d.querySelector('.tpl-meta').onclick=()=>{ state.make={template:t, mode:'auto', values:{}, source:'', image:null}; go('home'); };
+    d.querySelector('.tpl-meta').onclick=()=>{ const values={}; autoFillSelfFields(t, values); state.make={template:t, mode:'auto', values, source:'', image:null}; go('home'); };
     d.querySelector('.dupBtn').onclick=(e)=>{ e.stopPropagation(); duplicateTemplate(t.id); };
     d.querySelector('.editBtn').onclick=(e)=>{ e.stopPropagation(); startTemplateEdit(t.id); };
     d.querySelector('.delBtn').onclick=(e)=>{ e.stopPropagation(); if(confirm(`「${t.name}」を削除しますか？`)){
@@ -1040,7 +1111,11 @@ function viewHistory(app){
 /* ============================================================
    フォーマット保存フロー
 ============================================================ */
-function startTemplateNew(){ state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], repeatGroups:[], groupSelection:[], maskMode:'add', editId:null }; go('templateNew'); }
+function startTemplateNew(){
+  state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], repeatGroups:[], groupSelection:[], maskMode:'add', editId:null,
+    role: state.companyProfile.defaultRole || '', selfLabel: state.companyProfile.defaultRole || '' };
+  go('templateNew');
+}
 /* 既存フォーマットを編集用に読み込む（同じファイル・マスクを引き継いで再調整） */
 async function startTemplateEdit(id){
   const t=state.templates.find(x=>x.id===id);
@@ -1057,7 +1132,8 @@ async function startTemplateEdit(id){
     }),
     repeatGroups:(t.repeatGroups||[]).map(g=>({...g})),
     groupSelection:[],
-    maskMode:'add', editId:t.id };
+    maskMode:'add', editId:t.id,
+    role: t.role || '', selfLabel: t.selfLabel || '' };
   // anchorKey は前回の編集セッション時点のキーを指しているため、
   // 変数のキーを振り直した今、そのグループの実際のメンバーを見つけて再設定する
   // （一覧内の並び順に使うためのもので、放置すると常に無効な参照になってしまう）
@@ -1091,6 +1167,23 @@ function viewTemplateNew(app){
       <label class="lbl section-heading">フォーマット名</label>
       <input type="text" id="tplName" placeholder="例：業務委託契約書" value="${esc(d.name)}">
     </div>
+    <div class="row" style="max-width:520px;gap:12px">
+      <div class="field" style="flex:1">
+        <label class="lbl section-heading">自社の立場</label>
+        <select id="tplRole">
+          <option value="" ${!d.role?'selected':''}>未設定</option>
+          <option value="委託者" ${d.role==='委託者'?'selected':''}>委託者側</option>
+          <option value="受託者" ${d.role==='受託者'?'selected':''}>受託者側</option>
+        </select>
+      </div>
+      <div class="field" style="flex:1">
+        <label class="lbl section-heading">自社を指す言葉</label>
+        <input type="text" id="tplSelfLabel" placeholder="例：委託者、甲 など" value="${esc(d.selfLabel||'')}">
+      </div>
+    </div>
+    <p class="hint" style="max-width:520px;margin:-10px 0 18px">
+      項目名に「自社を指す言葉」が含まれる項目（会社名・住所・代表者など）は、契約書作成のたびに「自社情報」の登録内容から自動入力されます。
+    </p>
     <div id="uploadArea" ${editing?'style="display:none"':''}>
       <label class="lbl">フォーマットファイル（Word .docx / Excel .xlsx）</label>
       <div class="dropzone" id="drop">
@@ -1110,6 +1203,13 @@ function viewTemplateNew(app){
     <div id="maskArea" style="display:none;margin-top:24px"></div>
   `;
   document.getElementById('tplName').oninput=e=>d.name=e.target.value;
+  document.getElementById('tplRole').onchange=e=>{
+    d.role=e.target.value;
+    // 自社を指す言葉が未編集（立場の値と一致 or 空）なら、選んだ立場に合わせて追従させる
+    const lbl=document.getElementById('tplSelfLabel');
+    if(lbl && (!lbl.value.trim() || lbl.value==='委託者' || lbl.value==='受託者')){ lbl.value=e.target.value; d.selfLabel=e.target.value; }
+  };
+  document.getElementById('tplSelfLabel').oninput=e=>d.selfLabel=e.target.value;
   const fireFile=f=>{ if(f) handleTemplateFile(f); };
   // 新規アップロード用ドロップゾーン
   const drop=document.getElementById('drop');
@@ -2682,6 +2782,7 @@ function saveTemplate(){
   const record={
     id: d.editId || uid(),
     name:d.name.trim(), fileType:d.fileType, fileBase64:d.fileBase64,
+    role: d.role||'', selfLabel: (d.selfLabel||'').trim(),
     variables:d.variables.map(v=>({ propName:v.propName.trim(), originalText:v.originalText, occurrence:(v.occurrence??null), sheet:v.sheet||null, addr:v.addr||null,
       repeatGroupId:v.repeatGroupId||null, repeatRole:v.repeatRole||null, sortOrder:computeVarSortKey(v) })),
     repeatGroups:(d.repeatGroups||[]).map(g=>{
@@ -2704,13 +2805,18 @@ function saveTemplate(){
 /* ============================================================
    新規フォーマットから作る（AIによる一括自動作成）
    ------------------------------------------------------------
-   ①ひな形ファイルをアップロード → 自動でAIマスク（可変部分の検出）
-   ②情報ソースを入力 → AIが値を抽出し、会社名っぽい項目は自動でgBizINFO検索
-   ③「作成」画面へ、この場限りのフォーマット（未保存）を選択した状態で渡す
-   ④出力時に、次回以降も使えるようフォーマットとして保存するか確認する
+   ①ひな形ファイルをアップロード
+   ②自社の立場と、契約内容が書かれた情報ソースを先に入力する
+   ③AIがひな形から可変部分の候補を検出し、②の情報ソースから値を抽出する。
+     情報ソースに該当する記載がなく、かつ自社側の項目でもない箇所は「可変部分ではない」
+     と判断し、固定の文言に戻す（＝可変部分とするかどうかは②の入力内容に依存する）。
+     自社側の項目は情報ソースになくても「自社情報」の登録内容から自動入力する。
+   ④「作成」画面へ、この場限りのフォーマット（未保存）を選択した状態で渡す
+   ⑤出力時に、次回以降も使えるようフォーマットとして保存するか確認する
 ============================================================ */
 function startAiNewFlow(){
-  state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], repeatGroups:[], groupSelection:[], maskMode:'add', editId:null, source:'', image:null };
+  state.draft={ name:'', fileType:null, fileBase64:null, previewHtml:'', workbook:null, variables:[], repeatGroups:[], groupSelection:[], maskMode:'add', editId:null, source:'', image:null,
+    role: state.companyProfile.defaultRole || '', selfLabel: state.companyProfile.defaultRole || '' };
   go('aiNewFormat');
 }
 function viewAiNewFormat(app){
@@ -2720,8 +2826,9 @@ function viewAiNewFormat(app){
       <h1>新規フォーマットからAIで自動作成</h1>
     </div>
     <p class="hint" style="margin:0 0 18px;max-width:640px">
-      契約書のひな形ファイルと、契約内容が書かれた情報源（メール文面など）を用意してください。
-      フォーマットの認識・可変部分の特定・会社情報の検索・書類の作成までをAIが自動で行います。
+      契約書のひな形ファイルと、契約内容が書かれた情報源（メール文面やスクリーンショットなど）を用意してください。
+      どこが可変部分になるかは、下で入力する情報ソースの内容に応じてAIが判断します
+      （情報ソースに記載がない箇所は、可変部分にせず元の文言のまま残します）。
     </p>
     <div class="field" style="max-width:520px">
       <label class="lbl section-heading">フォーマット名（省略可・未入力ならファイル名を使用）</label>
@@ -2736,17 +2843,51 @@ function viewAiNewFormat(app){
       </div>
       <input type="file" id="aiNewFileInput" accept=".docx,.xlsx" style="display:none">
     </div>
-    <div id="maskArea" style="display:none;margin-top:24px"></div>
     <div id="aiNewSourceArea" style="display:none;margin-top:24px;max-width:640px">
+      <div class="row" style="gap:12px">
+        <div class="field" style="flex:1">
+          <label class="lbl section-heading">自社の立場</label>
+          <select id="aiNewRole">
+            <option value="" ${!d.role?'selected':''}>未設定（都度選ぶ）</option>
+            <option value="委託者" ${d.role==='委託者'?'selected':''}>委託者側（発注する側）</option>
+            <option value="受託者" ${d.role==='受託者'?'selected':''}>受託者側（受注する側）</option>
+          </select>
+        </div>
+        <div class="field" style="flex:1">
+          <label class="lbl section-heading">自社を指す言葉</label>
+          <input type="text" id="aiNewSelfLabel" placeholder="例：委託者、甲 など" value="${esc(d.selfLabel||'')}">
+        </div>
+      </div>
+      <p class="hint" style="margin:-8px 0 16px">
+        自社を指す言葉を含む項目（会社名・住所・代表者など）は、「自社情報」に登録済みの内容を自動で入力します。相手方の情報だけ入力すれば済むようになります。
+      </p>
       <div class="field">
         <label class="lbl section-heading">情報ソース</label>
-        <textarea id="aiNewSource" placeholder="契約内容が書かれた文章（メール・LINE等）を貼り付けてください">${esc(d.source||'')}</textarea>
+        <div class="split">
+          <div class="field">
+            <label class="lbl">テキスト</label>
+            <textarea id="aiNewSource" placeholder="契約内容が書かれた文章（メール・LINE等）を貼り付けてください">${esc(d.source||'')}</textarea>
+          </div>
+          <div class="field">
+            <label class="lbl">画像</label>
+            <div class="dropzone" id="aiNewImgDrop" style="padding:22px">
+              <div class="big" style="display:grid;place-items:center;margin-bottom:6px">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="color:var(--muted)"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><circle cx="8.5" cy="8.5" r="1.5"></circle><polyline points="21 15 16 10 5 21"></polyline></svg>
+              </div>
+              <div>クリックまたはドラッグ＆ドロップで画像を添付</div>
+              <div class="hint" id="aiNewImgName">${d.image?('選択中: '+esc(d.image.name)):'メッセージのスクリーンショットを添付できます。'}</div>
+              <div id="aiNewImgThumb">${d.image?`<div class="thumb-preview"><img src="data:${d.image.mime};base64,${d.image.base64}" alt="プレビュー"></div>`:''}</div>
+            </div>
+            <input type="file" id="aiNewImgInput" accept="image/*" style="display:none">
+          </div>
+        </div>
       </div>
       <div class="row end" style="margin-top:10px">
         <button class="btn ghost" onclick="go('home')">キャンセル</button>
         <button class="btn" id="aiNewRunBtn">${icon('sparkles',15)} AIで自動作成する</button>
       </div>
     </div>
+    <div id="maskArea" style="display:none;margin-top:24px"></div>
   `;
   document.getElementById('aiNewName').oninput=e=>d.name=e.target.value;
   const fireFile=async f=>{
@@ -2754,8 +2895,7 @@ function viewAiNewFormat(app){
     if(!_gasPassword){ AuthGate.show(); return; }
     await handleTemplateFile(f); // 既存のアップロード処理を流用（プレビュー生成・項目設定エリアの表示まで行う）
     const ua=document.getElementById('aiNewUploadArea'); if(ua) ua.style.display='none';
-    // アップロード直後に自動でAIマスク（可変部分の検出）を実行する（ボタンを押す必要はない）
-    await aiAutoMask();
+    // ここでは可変部分の自動検出は行わない。先に自社の立場・情報ソースを入力してもらう。
     const sa=document.getElementById('aiNewSourceArea'); if(sa) sa.style.display='block';
   };
   const drop=document.getElementById('aiNewDrop');
@@ -2771,8 +2911,34 @@ function viewAiNewFormat(app){
     buildMaskArea();
     const sa=document.getElementById('aiNewSourceArea'); if(sa) sa.style.display='block';
   }
+  const roleSel=document.getElementById('aiNewRole');
+  if(roleSel) roleSel.onchange=e=>{
+    d.role=e.target.value;
+    const lbl=document.getElementById('aiNewSelfLabel');
+    if(lbl && (!lbl.value.trim() || lbl.value==='委託者' || lbl.value==='受託者')){ lbl.value=e.target.value; d.selfLabel=e.target.value; }
+  };
+  const selfLabelInput=document.getElementById('aiNewSelfLabel');
+  if(selfLabelInput) selfLabelInput.oninput=e=>d.selfLabel=e.target.value;
   const srcArea=document.getElementById('aiNewSource');
   if(srcArea) srcArea.oninput=e=>d.source=e.target.value;
+  const imgDrop=document.getElementById('aiNewImgDrop');
+  const imgInput=document.getElementById('aiNewImgInput');
+  const setAiNewImg=async f=>{
+    if(!f) return;
+    if(!/^image\//.test(f.type)){ toast('画像ファイルを選んでください', true); return; }
+    const base64Str=await fileToBase64(f);
+    d.image={ name:f.name, mime:f.type, base64:base64Str };
+    const nameEl=document.getElementById('aiNewImgName'); if(nameEl) nameEl.textContent='選択中: '+f.name;
+    const thumb=document.getElementById('aiNewImgThumb');
+    if(thumb) thumb.innerHTML=`<div class="thumb-preview"><img src="data:${f.type};base64,${base64Str}" alt="プレビュー"></div>`;
+  };
+  if(imgDrop && imgInput){
+    imgDrop.onclick=()=>imgInput.click();
+    imgInput.onchange=e=>setAiNewImg(e.target.files[0]);
+    imgDrop.ondragover=e=>{e.preventDefault();imgDrop.classList.add('drag');};
+    imgDrop.ondragleave=()=>imgDrop.classList.remove('drag');
+    imgDrop.ondrop=e=>{e.preventDefault();imgDrop.classList.remove('drag'); setAiNewImg(e.dataTransfer.files[0]);};
+  }
   const runBtn=document.getElementById('aiNewRunBtn');
   if(runBtn) runBtn.onclick=runAiNewFlow;
 }
@@ -2783,6 +2949,7 @@ function buildTempTemplateFromDraft(d){
     id: uid(),
     name: d.name.trim() || (d.fileType==='docx' ? 'AIで作成したフォーマット（Word）' : 'AIで作成したフォーマット（Excel）'),
     fileType: d.fileType, fileBase64: d.fileBase64,
+    role: d.role||'', selfLabel: (d.selfLabel||'').trim(),
     variables: d.variables.map(v=>({ propName:v.propName.trim(), originalText:v.originalText, occurrence:(v.occurrence??null), sheet:v.sheet||null, addr:v.addr||null,
       repeatGroupId:v.repeatGroupId||null, repeatRole:v.repeatRole||null, sortOrder:computeVarSortKey(v) })),
     repeatGroups:(d.repeatGroups||[]).map(g=>{
@@ -2813,16 +2980,38 @@ async function autoLookupCompaniesForDraft(d, values){
     }catch(e){ /* 1件の検索に失敗しても、他の項目の処理は続行する */ }
   }
 }
+// 情報ソースに該当する記載がなく、かつ自社側の項目でもない可変部分候補を、可変部分から除外する
+// （＝元の文言のまま固定の文言として残す）。どこを可変部分にするかは、情報ソースの内容に依存する。
+function pruneUninformedVariables(d, values){
+  const selfLabel=(d.selfLabel||'').trim();
+  const toRemove=new Set();
+  uniqueNonGroupVars(d).forEach(v=>{
+    const isSelf = selfLabel && v.propName.includes(selfLabel);
+    if(isSelf) return; // 自社側の項目は情報ソースになくても自社情報から埋まるため残す
+    if(!(values[v.propName]||'').trim()) toRemove.add(v.propName);
+  });
+  if(!toRemove.size) return 0;
+  d.variables = d.variables.filter(v=> v.repeatGroupId || !toRemove.has(v.propName));
+  toRemove.forEach(n=>delete values[n]);
+  return toRemove.size;
+}
 async function runAiNewFlow(){
   if(!_gasPassword){ AuthGate.show(); return; }
   const d=state.draft;
   if(!d.fileBase64){ toast('先にひな形ファイルをアップロードしてください', true); return; }
-  if(!d.variables.length){ toast('可変部分が検出されていません。左のプレビューでマスクを追加してください', true); return; }
-  const emptyName=d.variables.filter(v=>!v.propName.trim());
-  if(emptyName.length){ toast('項目名が未設定の変数があります。項目名を入力してください', true); return; }
   const source=(d.source||'').trim();
-  if(!source){ toast('情報ソースを入力してください', true); return; }
+  if(!source && !d.image){ toast('情報ソースのテキストを入力するか、画像を添付してください', true); return; }
   try{
+    // ①可変部分の候補をAIで検出する（まだ何もマスクしていなければ、ここで初めて実行する）
+    if(!d.variables.length){
+      loading(true, 'AIがひな形から可変部分の候補を検出中…');
+      await aiAutoMask();
+      // 項目名が空のまま検出された候補には仮の項目名を振っておく（後続の抽出処理のため）
+      d.variables.forEach(v=>{ if(!v.propName.trim()) v.propName=uniquePropName_(d, '項目'); });
+    }
+    if(!d.variables.length){ toast('可変部分の候補が見つかりませんでした。左のプレビューで手動でマスクしてください', true); return; }
+
+    // ②情報ソースから値を抽出する
     loading(true, 'AIが情報を解析中…');
     const today=new Date();
     const todayDate=`${today.getFullYear()}年${today.getMonth()+1}月${today.getDate()}日`;
@@ -2831,6 +3020,10 @@ async function runAiNewFlow(){
       groups: (d.repeatGroups||[]).map(g=>({ id:g.id, label:g.label, memberPropNames:g.memberPropNames })),
       source, todayDate
     };
+    if(d.image){
+      payload.imageBase64 = d.image.base64;
+      payload.imageMime = d.image.mime;
+    }
     const { values:standaloneValues, groupEntries } = await callAI('extractValues', payload);
     const values={};
     uniqueNonGroupVars(d).forEach(v=>{ values[v.propName]=(standaloneValues && standaloneValues[v.propName]) || ''; });
@@ -2843,6 +3036,12 @@ async function runAiNewFlow(){
     });
     syncSharedValuesAfterAIFill(d, { values });
 
+    // ③情報ソースに記載がなく、自社側の項目でもない候補は可変部分から外す（固定文言に戻す）
+    const prunedCount=pruneUninformedVariables(d, values);
+
+    // ④自社側の項目は「自社情報」の登録内容から自動入力する
+    autoFillSelfFields(d, values);
+
     loading(true, 'AIが会社情報を検索中…');
     await autoLookupCompaniesForDraft(d, values);
 
@@ -2852,7 +3051,7 @@ async function runAiNewFlow(){
     go('home');
     renderSideTplList();
     renderMakeWorkarea();
-    toast('AIによる自動作成が完了しました。内容をご確認ください。');
+    toast('AIによる自動作成が完了しました。'+(prunedCount?`情報ソースに記載のない${prunedCount}件は可変部分にしませんでした。`:'')+'内容をご確認ください。');
   }catch(e){ loading(false); toast('自動作成に失敗しました: '+e.message, true); }
 }
 // 出力完了後、AIで自動作成した（まだ保存されていない）フォーマットを、次回以降も使えるように
@@ -2873,7 +3072,7 @@ function maybeSaveAiGeneratedTemplate(t){
     bd.classList.add('show');
     function finish(){ bd.classList.remove('show'); resolve(); }
     document.getElementById('saveAiTplYes').onclick=()=>{
-      state.templates.push({ id:t.id, name:t.name, fileType:t.fileType, fileBase64:t.fileBase64, variables:t.variables, repeatGroups:t.repeatGroups });
+      state.templates.push({ id:t.id, name:t.name, fileType:t.fileType, fileBase64:t.fileBase64, role:t.role||'', selfLabel:t.selfLabel||'', variables:t.variables, repeatGroups:t.repeatGroups });
       saveTemplates();
       renderSideTplList();
       delete t.__unsaved;
@@ -3095,6 +3294,40 @@ function looksLikeAddressField(propName){
 }
 function looksLikeRepresentativeField(propName){
   return /(代表者|代表取締役)/.test(propName);
+}
+function looksLikePostalField(propName){
+  return /(郵便番号|〒)/.test(propName);
+}
+function looksLikePersonField(propName){
+  return /(担当者)/.test(propName) && !/(会社|法人|商号|社名)/.test(propName);
+}
+function looksLikeTelField(propName){
+  return /(電話番号|電話|TEL)/i.test(propName);
+}
+function looksLikeEmailField(propName){
+  return /(メールアドレス|メール|e-?mail)/i.test(propName);
+}
+function looksLikeInvoiceField(propName){
+  return /(インボイス|登録番号)/.test(propName);
+}
+// 項目名に「自社を指す言葉」（selfLabel）が含まれる項目へ、保存済みの自社情報を自動反映する。
+// 値が既に入っている項目は上書きしない。selfLabelが未設定のフォーマットには何もしない。
+function autoFillSelfFields(t, values){
+  const selfLabel=((t && t.selfLabel) || '').trim();
+  if(!selfLabel) return;
+  const p=state.companyProfile || {};
+  uniqueNonGroupVars(t).forEach(v=>{
+    if(!v.propName.includes(selfLabel)) return;
+    if((values[v.propName]||'').trim()) return; // 既に値がある項目は上書きしない
+    if(looksLikeCompanyNameField(v.propName) && p.name) values[v.propName]=p.name;
+    else if(looksLikeAddressField(v.propName) && p.address) values[v.propName]=p.address;
+    else if(looksLikeRepresentativeField(v.propName) && p.repName) values[v.propName]=(p.repTitle?p.repTitle+' ':'')+p.repName;
+    else if(looksLikePostalField(v.propName) && p.postalCode) values[v.propName]=p.postalCode;
+    else if(looksLikePersonField(v.propName) && p.personName) values[v.propName]=p.personName;
+    else if(looksLikeTelField(v.propName) && p.tel) values[v.propName]=p.tel;
+    else if(looksLikeEmailField(v.propName) && p.email) values[v.propName]=p.email;
+    else if(looksLikeInvoiceField(v.propName) && p.invoiceNo) values[v.propName]=p.invoiceNo;
+  });
 }
 // 「甲の会社名」→「甲の」のように、会社名項目のキーワードより前の部分を接頭辞として取り出す
 // （同じ接頭辞を持つ住所・代表者項目を優先的に紐づけるため）
