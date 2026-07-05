@@ -2578,7 +2578,7 @@ function renderMakeFormFields(){
       const v=it.v;
       const f=document.createElement('div'); f.className='field'; f.style.margin='0';
       const showLookup=looksLikeCompanyNameField(v.propName);
-      f.innerHTML=`<label class="lbl" style="display:flex;align-items:center;gap:6px"><span>${esc(v.propName)}</span>${showLookup?`<button type="button" class="btn ghost sm" id="lookup_${esc(v.key)}" title="会社名から法人情報（住所・代表者名）を検索" style="padding:1px 8px;height:auto;line-height:1.6;font-size:11px;flex:none">会社情報AI検索</button>`:''}</label>
+      f.innerHTML=`<label class="lbl" style="display:flex;align-items:center;gap:6px"><span>${esc(v.propName)}</span>${showLookup?`<button type="button" class="btn ghost sm" id="lookup_${esc(v.key)}" title="会社名から法人情報（住所・代表者名）を検索" style="padding:1px 8px;height:auto;line-height:1.6;font-size:11px;flex:none">会社情報取得</button>`:''}</label>
         <textarea class="val-input" rows="1" data-prop="${esc(v.propName)}" placeholder="${esc(v.originalText.slice(0,30))}">${esc(m.values[v.propName]||'')}</textarea>`;
       const inp=f.querySelector('textarea');
       autoGrowTextarea(inp);
