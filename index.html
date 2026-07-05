@@ -1480,19 +1480,8 @@ function refreshVarList(){
   renderGroupToolbar();
   refreshMaskTitles();
 }
-/* 項目名をリネームし、「同じ値」として結合されている他の項目（グループ内外・別グループ問わず）の
-   名前と、関連する繰り返し行グループの memberPropNames もまとめて追従させる */
-function renameVariableAndSync(d, v, newName){
-  const oldName=v.propName;
-  v.propName=newName;
-  syncGroupMemberName(d, v, oldName, newName);
-  if(!oldName.trim()) return;
-  d.variables.forEach(other=>{
-    if(other===v || other.propName!==oldName) return;
-    other.propName=newName;
-    syncGroupMemberName(d, other, oldName, newName);
-  });
-}
+/* 「同じ値として結合」した項目のうち、いずれかが繰り返し行のメンバーだった場合に、
+   そのグループの memberPropNames にも新しい名前を反映させるためのヘルパー */
 function syncGroupMemberName(d, v, oldName, newName){
   if(!v.repeatGroupId) return;
   const g=(d.repeatGroups||[]).find(x=>x.id===v.repeatGroupId);
@@ -1522,7 +1511,7 @@ function buildVarItemEl(d, v, nameCounts){
       <input type="checkbox" class="grp-check" ${checked?'checked':''}>
     </div>`;
   item.querySelector('input[type=text]').oninput=e=>{
-    renameVariableAndSync(d, v, e.target.value);
+    v.propName=e.target.value;
     refreshMaskTitles();
   };
   item.querySelector('input[type=text]').onfocus=()=>highlightPreviewForVar(v.key);
@@ -1586,7 +1575,10 @@ function buildGroupCardEl(d, g, nameCounts){
       const inp=row.querySelector('input[type=text]');
       inp.onfocus=()=>highlightPreviewForVar(v.key);
       inp.oninput=e=>{
-        renameVariableAndSync(d, v, e.target.value);
+        const oldName=v.propName;
+        const newName=e.target.value;
+        v.propName=newName;
+        syncGroupMemberName(d, v, oldName, newName); // 自分自身が属するグループのmemberPropNamesだけは必ず追従させる
         refreshMaskTitles();
       };
       const chk=row.querySelector('.grp-check');
@@ -1648,7 +1640,7 @@ function mergeAsSharedValue(keys){
   if(vars.length<2) return;
   const name=(prompt('これらを同じ値として扱います。共通の項目名を入力してください', vars[0].propName||'')||'').trim();
   if(!name) return;
-  vars.forEach(v=>v.propName=name);
+  vars.forEach(v=>{ const oldName=v.propName; v.propName=name; syncGroupMemberName(d, v, oldName, name); });
   d.groupSelection=[];
   refreshVarList();
   toast(`${vars.length}件を同じ値として結合しました`);
