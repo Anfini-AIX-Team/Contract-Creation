@@ -147,6 +147,12 @@
   .docx-preview.mode-select .mask{cursor:pointer}
   .docx-preview.mode-select .mask:hover{outline:1px dashed var(--success);outline-offset:1px}
   .mask.mask-checked{outline:2px solid var(--success);outline-offset:1px}
+  .docx-preview.mode-edit td,.docx-preview.mode-edit th{cursor:pointer}
+  .docx-preview.mode-edit td:hover,.docx-preview.mode-edit th:hover{outline:2px solid var(--brand);outline-offset:-2px;background:var(--brand-soft)}
+  .docx-preview.mode-edit p:hover{outline:1px dashed var(--brand);cursor:text}
+  .table-edit-toolbar{position:fixed;z-index:2000;background:#fff;border:1px solid var(--line);border-radius:10px;box-shadow:var(--shadow);padding:8px;display:flex;flex-direction:column;gap:4px;min-width:170px}
+  .table-edit-toolbar .btn{width:100%;justify-content:flex-start}
+  .table-edit-toolbar-sep{height:1px;background:var(--line);margin:4px 0}
   .xlsx-preview{padding:14px;max-height:520px;overflow:auto}
   .xlsx-preview .sheetname{font-size:12px;font-weight:700;color:var(--muted);margin:10px 4px 4px;text-transform:uppercase;letter-spacing:.04em}
   .xlsx-preview table{border-collapse:collapse;font-size:13px}
@@ -233,6 +239,7 @@
   <div class="header-right" id="headerRightSlot">
     <button class="link-btn" onclick="go('history')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M3 3v5h5"></path><path d="M3.05 13A9 9 0 1 0 6 5.3L3 8"></path><path d="M12 7v5l4 2"></path></svg>生成履歴</button>
     <button class="link-btn" onclick="go('templates')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>フォーマット管理</button>
+    <button class="link-btn" onclick="go('aiSettings')"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="vertical-align:-3px;margin-right:4px"><circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path></svg>AI設定</button>
     <span id="authStatusText" style="font-size:12px;color:var(--text-muted);display:inline-flex;align-items:center;gap:4px;"></span>
     <button onclick="AuthGate.show()" style="height:28px;box-sizing:border-box;background:none;border:1px solid var(--border);border-radius:6px;padding:0 10px;font-size:11px;cursor:pointer;color:var(--text-secondary);display:inline-flex;align-items:center;">変更</button>
   </div>
@@ -288,6 +295,7 @@ const state = {
   view: 'home',
   templates: Store.get('templates') || [],
   history: Store.get('history') || [],
+  aiDefaultInstructions: Store.get('aiDefaultInstructions') || '',
   // フォーマット作成中の一時データ
   draft: null,
   // 契約書作成中の一時データ
@@ -295,6 +303,7 @@ const state = {
 };
 function saveTemplates(){ Store.set('templates', state.templates); }
 function saveHistory(){ Store.set('history', state.history); }
+function saveAiDefaultInstructions(){ Store.set('aiDefaultInstructions', state.aiDefaultInstructions); }
 function uid(){ return 'k'+Math.random().toString(36).slice(2,9); }
 /* ============================================================
    アイコン（絵文字を廃止し、統一されたラインアイコンに置き換え）
@@ -324,6 +333,7 @@ function icon(name, size){
     link: '<path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"></path><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"></path>',
     checkSquare: '<polyline points="9 11 12 14 22 4"></polyline><path d="M21 12v7a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11"></path>',
     eye: '<path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8Z"></path><circle cx="12" cy="12" r="3"></circle>',
+    settings: '<circle cx="12" cy="12" r="3"></circle><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06a1.65 1.65 0 0 0 .33-1.82 1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.65 1.65 0 0 0 1.82.33H9a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.65 1.65 0 0 0-.33 1.82V9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1Z"></path>',
     arrowUp: '<line x1="12" y1="19" x2="12" y2="5"></line><polyline points="5 12 12 5 19 12"></polyline>',
     arrowDown: '<line x1="12" y1="5" x2="12" y2="19"></line><polyline points="19 12 12 19 5 12"></polyline>'
   };
@@ -362,11 +372,15 @@ let _gasPassword = '';
 async function callAI(action, payload){
   if(!gasReady()){ throw new Error('AI接続先が未設定です。管理者にお問い合わせください。'); }
   if(!_gasPassword){ AuthGate.show(); throw new Error('先にパスワードでログインしてください。'); }
+  // 「AI設定」の“常に考慮すべき事項”は、AI自動入力（extractValues）にのみ付け加える
+  const fullPayload = (action==='extractValues')
+    ? { ...payload, defaultInstructions: state.aiDefaultInstructions || '' }
+    : payload;
   const res = await fetch(GAS_URL, {
     method:'POST',
     // text/plain にすることでCORSプリフライトを回避（GAS Web Appの定石）
     headers:{ 'Content-Type':'text/plain;charset=utf-8' },
-    body: JSON.stringify({ action, payload, password: _gasPassword })
+    body: JSON.stringify({ action, payload: fullPayload, password: _gasPassword })
   });
   const data = await res.json();
   if(data.error) throw new Error('AIエラー: '+data.error);
@@ -387,7 +401,35 @@ function render(view, arg){
   app.classList.toggle('wrap', view!=='home');
   app.innerHTML='';
   ({ home:viewHome, templates:viewTemplates,
-     templateNew:viewTemplateNew, history:viewHistory }[view]||viewHome)(app, arg);
+     templateNew:viewTemplateNew, history:viewHistory, aiSettings:viewAiSettings }[view]||viewHome)(app, arg);
+}
+/* ============================================================
+   画面：AI設定（常に考慮すべき事項の既定文を保存し、AI自動入力にのみ付与する）
+============================================================ */
+function viewAiSettings(app){
+  app.innerHTML=`
+    <div class="page-head">
+      <h1>AI設定</h1>
+    </div>
+    <div class="wrap" style="max-width:760px;margin:0;padding:0">
+      <div class="card">
+        <h2 style="font-size:16px;margin:0 0 6px">AIが常に考慮すべき事項</h2>
+        <p class="hint" style="margin:0 0 14px">
+          ここに書いた内容は、契約書作成画面の「AI自動入力」にのみ自動的に付け加えられます
+          （「AIで自動マスク」「AIで項目名生成」には影響しません）。会社名の表記ルールや、
+          特定の項目の解釈の仕方など、入力値を読み取らせる際に毎回伝えたい前提をここに固定しておけます。
+        </p>
+        <textarea id="aiDefaultInstructionsInput" style="min-height:220px" placeholder="例：\n・「甲」は常に委託者側、「乙」は受託者側です。\n・金額は税別で記載してください。\n・日付は西暦（20XX年）で統一してください。">${esc(state.aiDefaultInstructions||'')}</textarea>
+        <div class="row end" style="margin-top:16px">
+          <button class="btn" id="saveAiSettingsBtn">${icon('checkCircle',15)} 保存する</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('saveAiSettingsBtn').onclick=()=>{
+    state.aiDefaultInstructions=document.getElementById('aiDefaultInstructionsInput').value;
+    saveAiDefaultInstructions();
+    toast('AI設定を保存しました');
+  };
 }
 /* ============================================================
    画面：ホーム
@@ -970,6 +1012,7 @@ function buildMaskArea(){
             <button data-mode="add" class="${d.maskMode==='add'?'on':''}">${icon('pencil',14)} 追加</button>
             <button data-mode="select" class="${d.maskMode==='select'?'on':''}">${icon('checkSquare',14)} 選択</button>
             <button data-mode="erase" class="erase ${d.maskMode==='erase'?'on':''}">${icon('eraser',14)} 除去</button>
+            <button data-mode="edit" class="${d.maskMode==='edit'?'on':''}">${icon('settings',14)} 編集</button>
           </div>
           <button class="btn sm accent" id="autoDetectBtn" style="margin-left:8px">${icon('sparkles',14)} AIで自動マスク</button>
         </div>
@@ -1014,10 +1057,19 @@ function buildMaskArea(){
     });
     // 消しゴムモード：マスクをクリックで除去／選択モード：クリックでチェックON-OFF／追加モード：クリックで右の一覧を選択
     body.addEventListener('click',e=>{
+      if(state.draft.maskMode==='edit') return; // 編集モードは別のハンドラで処理する
       const m=e.target.closest('.mask'); if(!m) return;
       if(state.draft.maskMode==='erase') removeVar(m.dataset.key);
       else if(state.draft.maskMode==='select') toggleGroupSelectionForKey(m.dataset.key);
       else selectVariableInList(m.dataset.key);
+    });
+    // 編集モード：表のセルをクリック→行/列の追加・削除ツールバー／文章をクリック→文言修正
+    body.addEventListener('click',e=>{
+      if(state.draft.maskMode!=='edit') return;
+      const td=e.target.closest('td,th');
+      if(td){ e.stopPropagation(); showTableEditToolbar(td); return; }
+      const p=e.target.closest('p');
+      if(p && !p.closest('table')){ editParagraphText(p); }
     });
   }else{
     renderXlsxPreview(body);
@@ -1030,7 +1082,7 @@ function buildMaskArea(){
 }
 /* ---- マスクモード（鉛筆＝追加 / 消しゴム＝除去）---- */
 function setMaskMode(mode){
-  state.draft.maskMode = (mode==='erase'||mode==='select') ? mode : 'add';
+  state.draft.maskMode = (mode==='erase'||mode==='select'||mode==='edit') ? mode : 'add';
   clearGroupSelection();
   applyMaskModeUI();
 }
@@ -1047,6 +1099,7 @@ function applyMaskModeUI(){
     body.classList.toggle('mode-add', d.maskMode==='add');
     body.classList.toggle('mode-erase', d.maskMode==='erase');
     body.classList.toggle('mode-select', d.maskMode==='select');
+    body.classList.toggle('mode-edit', d.maskMode==='edit');
   }
   applyGroupSelectionClassesToPreview();
   const help=document.getElementById('maskHelp');
@@ -1056,6 +1109,8 @@ function applyMaskModeUI(){
         ? '除去モード：黄色いマスクをクリックすると解除します。'
         : d.maskMode==='select'
         ? '選択モード：マスクをクリックしてチェックを付けます（行グループ化や同じ値としての結合に使えます）。'
+        : d.maskMode==='edit'
+        ? '編集モード：文章（マスクを含まない段落）をクリックすると文言を修正できます。表のセルをクリックすると行・列の追加/削除ができます。'
         : '追加モード：置き換えたい文字をドラッグで選択するとマスクされます。';
     }else{
       help.textContent = d.maskMode==='erase'
@@ -1245,10 +1300,335 @@ function previewRangeOfNode(el, map){
   if(si<0||li<0) return null;
   return [ map.starts[si], map.starts[li]+map.nodes[li].nodeValue.length ];
 }
-/* ---- 「行」グループを作成：対象行を1行に刈り込み、変数をグループに登録する ----
-   左プレビュー（mammoth変換後のHTML）とファイル本体（生のdocument.xml）の
-   テキスト表現の違いに影響されないよう、occurrenceの再計算は必ず
-   「今表示されているプレビューのテキスト」を基準に行う。 */
+/* ============================================================
+   簡易テンプレート編集（文言修正・表の行/列の追加削除）
+   ------------------------------------------------------------
+   プレビュー（mammothのHTML）上の要素と、実ファイル（document.xml）側の
+   対応する要素は、「何番目の表か」「その中の何番目の行/セルか」という
+   構造上の並び順で対応づける（文言の一致ではなく構造の一致に頼ることで、
+   同じ文言が繰り返し出てくる場合の取り違えを避ける）。
+   構造編集のあとは、必ず「編集前のプレビュー上の文字位置」を基準に、
+   各マスクの新しい出現位置を再計算する（実ファイルのXML構造の違いに
+   影響されないようにするため）。
+============================================================ */
+// プレビュー上の要素が、何番目の表の何番目の行／セルかを求める
+function previewTableRowIndex(trEl){
+  const table=trEl.closest('table');
+  if(!table) return null;
+  const body=document.getElementById('previewBody');
+  const allTables=[...body.querySelectorAll('table')];
+  const tableIndex=allTables.indexOf(table);
+  const rows=[...table.children].find(c=>c.tagName==='TBODY') ? [...table.querySelector('tbody').children] : [...table.children].filter(c=>c.tagName==='TR');
+  const rowIndex=rows.indexOf(trEl);
+  return { tableIndex, rowIndex, rowCount: rows.length };
+}
+function previewTableCellIndex(tdEl){
+  const tr=tdEl.closest('tr');
+  const rowInfo=previewTableRowIndex(tr);
+  if(!rowInfo) return null;
+  const cells=[...tr.children].filter(c=>c.tagName==='TD'||c.tagName==='TH');
+  const colIndex=cells.indexOf(tdEl);
+  return { ...rowInfo, colIndex, colCount: cells.length };
+}
+// 実ファイル（document.xml）側で、何番目の表の何番目の行/セルかを構造的に特定する
+function rawNthTable(doc, tableIndex){
+  const all=[...doc.getElementsByTagName('w:tbl')];
+  return all[tableIndex] || null;
+}
+function rawTableRows(tbl){
+  return [...tbl.childNodes].filter(n=>n.nodeName==='w:tr');
+}
+function rawRowCells(tr){
+  return [...tr.childNodes].filter(n=>n.nodeName==='w:tc');
+}
+/* ---- 編集前のプレビュー時点での全マスクの文字位置を記録し、構造編集後に
+   挿入／削除された範囲ぶんだけ位置をずらして、新しい出現位置を求め直す ---- */
+function captureVarPositions(d, mapOld){
+  const positions={};
+  d.variables.forEach(v=>{
+    if(v.addr) return;
+    const list=allIndexOf(mapOld.full, v.originalText);
+    positions[v.key]=list[v.occurrence||0];
+  });
+  return positions;
+}
+function reconcileVarPositions(d, oldPositions, changedRanges, mapNew){
+  // changedRanges: [{start, oldLen, newLen}] 編集前のプレビュー座標系での変更範囲（挿入はoldLen=0、削除はnewLen=0）
+  const dropped=[];
+  d.variables.forEach(v=>{
+    if(v.addr) return;
+    const oldPos=oldPositions[v.key];
+    if(oldPos==null){ dropped.push(v); return; }
+    const inside=changedRanges.some(r=>oldPos>=r.start && oldPos<r.start+r.oldLen && r.oldLen>0);
+    if(inside){ dropped.push(v); return; }
+    let shift=0;
+    changedRanges.forEach(r=>{ if(r.start<=oldPos) shift += (r.newLen-r.oldLen); });
+    const newPos=oldPos+shift;
+    const newOcc=allIndexOf(mapNew.full, v.originalText).indexOf(newPos);
+    if(newOcc<0){ dropped.push(v); return; }
+    v.occurrence=newOcc;
+  });
+  if(dropped.length){
+    const dropKeys=new Set(dropped.map(v=>v.key));
+    d.variables=d.variables.filter(v=>!dropKeys.has(v.key));
+    dropped.forEach(v=>{
+      if(!v.repeatGroupId) return;
+      const g=(d.repeatGroups||[]).find(x=>x.id===v.repeatGroupId);
+      if(g) g.memberPropNames=g.memberPropNames.filter(p=>p!==v.propName);
+    });
+    d.repeatGroups=(d.repeatGroups||[]).filter(g=>g.memberPropNames.length>0);
+    if(d.groupSelection) d.groupSelection=d.groupSelection.filter(k=>!dropKeys.has(k));
+  }
+  return dropped.map(v=>v.propName);
+}
+/* ---- 構造編集を1件実行する共通処理：編集前の位置を記録→XMLを編集→ファイル書き戻し→
+   新プレビュー生成→マスク位置の再計算、をまとめて行う ---- */
+async function runTemplateStructuralEdit(mutateFn){
+  const d=state.draft;
+  const previewBody=document.getElementById('previewBody');
+  const mapOld=previewTextMap(previewBody);
+  const zip=new PizZip(base64ToAb(d.fileBase64));
+  const doc=new DOMParser().parseFromString(zip.file('word/document.xml').asText(),'application/xml');
+  const changedRanges=mutateFn(doc, mapOld) || [];
+  const out=new XMLSerializer().serializeToString(doc);
+  zip.file('word/document.xml', out);
+  const blob=zip.generate({type:'blob'});
+  const ab=await blob.arrayBuffer();
+  d.fileBase64=abToBase64(ab);
+  const preview=await mammoth.convertToHtml({arrayBuffer:ab});
+  d.previewHtml=preview.value;
+  const tmp=document.createElement('div'); tmp.style.cssText='position:absolute;left:-99999px;top:-99999px;visibility:hidden';
+  tmp.innerHTML=d.previewHtml;
+  document.body.appendChild(tmp);
+  const mapNew=previewTextMap(tmp);
+  document.body.removeChild(tmp);
+  const oldPositions=captureVarPositions(d, mapOld);
+  const droppedNames=reconcileVarPositions(d, oldPositions, changedRanges, mapNew);
+  return { droppedNames };
+}
+/* ---- 表の行を複製して上/下に追加する ---- */
+async function addTableRow(trEl, insertBelow){
+  const info=previewTableRowIndex(trEl);
+  if(!info) return;
+  const previewBody=document.getElementById('previewBody');
+  const mapOld=previewTextMap(previewBody);
+  const range=previewRangeOfNode(trEl, mapOld);
+  if(!range) return;
+  try{
+    loading(true,'行を追加しています…');
+    const { droppedNames } = await runTemplateStructuralEdit((doc)=>{
+      const tbl=rawNthTable(doc, info.tableIndex);
+      if(!tbl) throw new Error('対象の表が見つかりませんでした');
+      const rows=rawTableRows(tbl);
+      const srcRow=rows[info.rowIndex];
+      if(!srcRow) throw new Error('対象の行が見つかりませんでした');
+      const clone=srcRow.cloneNode(true);
+      if(insertBelow){ tbl.insertBefore(clone, srcRow.nextSibling); }
+      else{ tbl.insertBefore(clone, srcRow); }
+      const insertPos = insertBelow ? range[1] : range[0];
+      const len = range[1]-range[0];
+      return [{ start: insertPos, oldLen:0, newLen: len }];
+    });
+    loading(false);
+    if(droppedNames.length) toast('注意: '+droppedNames.join('、')+' が無効になりました。再度マスクしてください。', true);
+    else toast('行を追加しました');
+    buildMaskArea();
+  }catch(e){ loading(false); toast('行の追加に失敗しました: '+e.message, true); }
+}
+/* ---- 表の行を削除する（最低1行は残す） ---- */
+async function deleteTableRow(trEl){
+  const info=previewTableRowIndex(trEl);
+  if(!info) return;
+  if(info.rowCount<=1){ toast('最後の1行は削除できません', true); return; }
+  if(!confirm('この行を削除します。よろしいですか？')) return;
+  const previewBody=document.getElementById('previewBody');
+  const mapOld=previewTextMap(previewBody);
+  const range=previewRangeOfNode(trEl, mapOld);
+  if(!range) return;
+  try{
+    loading(true,'行を削除しています…');
+    const { droppedNames } = await runTemplateStructuralEdit((doc)=>{
+      const tbl=rawNthTable(doc, info.tableIndex);
+      if(!tbl) throw new Error('対象の表が見つかりませんでした');
+      const rows=rawTableRows(tbl);
+      const row=rows[info.rowIndex];
+      if(!row) throw new Error('対象の行が見つかりませんでした');
+      tbl.removeChild(row);
+      return [{ start: range[0], oldLen: range[1]-range[0], newLen: 0 }];
+    });
+    loading(false);
+    if(droppedNames.length) toast('注意: '+droppedNames.join('、')+' が削除した行に含まれていたため無効になりました。', true);
+    else toast('行を削除しました');
+    buildMaskArea();
+  }catch(e){ loading(false); toast('行の削除に失敗しました: '+e.message, true); }
+}
+/* ---- 表の列を複製して左/右に追加する ---- */
+async function addTableColumn(tdEl, insertRight){
+  const info=previewTableCellIndex(tdEl);
+  if(!info) return;
+  const previewBody=document.getElementById('previewBody');
+  const table=tdEl.closest('table');
+  const rowsEl=[...table.querySelectorAll('tr')];
+  const mapOld=previewTextMap(previewBody);
+  const changedRanges=[];
+  rowsEl.forEach(tr=>{
+    const cells=[...tr.children].filter(c=>c.tagName==='TD'||c.tagName==='TH');
+    const cell=cells[info.colIndex];
+    if(!cell) return;
+    const r=previewRangeOfNode(cell, mapOld);
+    if(r) changedRanges.push({ start: insertRight?r[1]:r[0], oldLen:0, newLen:(r[1]-r[0]) });
+  });
+  try{
+    loading(true,'列を追加しています…');
+    const { droppedNames } = await runTemplateStructuralEdit((doc)=>{
+      const tbl=rawNthTable(doc, info.tableIndex);
+      if(!tbl) throw new Error('対象の表が見つかりませんでした');
+      const tblGrid=[...tbl.childNodes].find(n=>n.nodeName==='w:tblGrid');
+      if(tblGrid){
+        const cols=[...tblGrid.childNodes].filter(n=>n.nodeName==='w:gridCol');
+        const srcCol=cols[info.colIndex];
+        if(srcCol){
+          const cloneCol=srcCol.cloneNode(true);
+          tblGrid.insertBefore(cloneCol, insertRight?srcCol.nextSibling:srcCol);
+        }
+      }
+      rawTableRows(tbl).forEach(tr=>{
+        const cells=rawRowCells(tr);
+        const srcCell=cells[info.colIndex];
+        if(!srcCell) return;
+        const cloneCell=srcCell.cloneNode(true);
+        tr.insertBefore(cloneCell, insertRight?srcCell.nextSibling:srcCell);
+      });
+      return changedRanges;
+    });
+    loading(false);
+    if(droppedNames.length) toast('注意: '+droppedNames.join('、')+' が無効になりました。再度マスクしてください。', true);
+    else toast('列を追加しました');
+    buildMaskArea();
+  }catch(e){ loading(false); toast('列の追加に失敗しました: '+e.message, true); }
+}
+/* ---- 表の列を削除する（最低1列は残す） ---- */
+async function deleteTableColumn(tdEl){
+  const info=previewTableCellIndex(tdEl);
+  if(!info) return;
+  if(info.colCount<=1){ toast('最後の1列は削除できません', true); return; }
+  if(!confirm('この列を削除します。よろしいですか？')) return;
+  const previewBody=document.getElementById('previewBody');
+  const table=tdEl.closest('table');
+  const rowsEl=[...table.querySelectorAll('tr')];
+  const mapOld=previewTextMap(previewBody);
+  const changedRanges=[];
+  rowsEl.forEach(tr=>{
+    const cells=[...tr.children].filter(c=>c.tagName==='TD'||c.tagName==='TH');
+    const cell=cells[info.colIndex];
+    if(!cell) return;
+    const r=previewRangeOfNode(cell, mapOld);
+    if(r) changedRanges.push({ start:r[0], oldLen:(r[1]-r[0]), newLen:0 });
+  });
+  try{
+    loading(true,'列を削除しています…');
+    const { droppedNames } = await runTemplateStructuralEdit((doc)=>{
+      const tbl=rawNthTable(doc, info.tableIndex);
+      if(!tbl) throw new Error('対象の表が見つかりませんでした');
+      const tblGrid=[...tbl.childNodes].find(n=>n.nodeName==='w:tblGrid');
+      if(tblGrid){
+        const cols=[...tblGrid.childNodes].filter(n=>n.nodeName==='w:gridCol');
+        const col=cols[info.colIndex];
+        if(col) tblGrid.removeChild(col);
+      }
+      rawTableRows(tbl).forEach(tr=>{
+        const cells=rawRowCells(tr);
+        const cell=cells[info.colIndex];
+        if(cell) tr.removeChild(cell);
+      });
+      return changedRanges;
+    });
+    loading(false);
+    if(droppedNames.length) toast('注意: '+droppedNames.join('、')+' が削除した列に含まれていたため無効になりました。', true);
+    else toast('列を削除しました');
+    buildMaskArea();
+  }catch(e){ loading(false); toast('列の削除に失敗しました: '+e.message, true); }
+}
+/* ---- 段落の文言修正（マスクを含まない段落のみ、直接テキストを書き換えられるようにする） ---- */
+async function editParagraphText(pEl){
+  if(pEl.querySelector('.mask')){ toast('マスクを含む段落は直接編集できません。マスクを解除してから編集してください。', true); return; }
+  const previewBody=document.getElementById('previewBody');
+  const mapOld=previewTextMap(previewBody);
+  const range=previewRangeOfNode(pEl, mapOld);
+  if(!range) return;
+  const oldText=mapOld.full.slice(range[0], range[1]);
+  const newText=prompt('文言を修正してください', oldText);
+  if(newText==null || newText===oldText) return;
+  try{
+    loading(true,'文言を修正しています…');
+    const d=state.draft;
+    const zip=new PizZip(base64ToAb(d.fileBase64));
+    const doc=new DOMParser().parseFromString(zip.file('word/document.xml').asText(),'application/xml');
+    // 段落中のすべてのrunを対象に、最初のrunへ新しい文言をまとめ、他は空にする
+    const runs=[...doc.getElementsByTagName('w:t')];
+    const full=runs.map(r=>r.textContent).join('');
+    const start=full.indexOf(oldText); // 対象段落はマスクを含まないため、通常は文書内で位置が一意
+    if(start<0) throw new Error('対象の段落が見つかりませんでした');
+    const edit=resolveRangeToRunEdit(runs.map(node=>({node})), start, start+oldText.length);
+    if(!edit) throw new Error('対象の段落が見つかりませんでした');
+    applyRunEdit(edit, newText);
+    const out=new XMLSerializer().serializeToString(doc);
+    zip.file('word/document.xml', out);
+    const blob=zip.generate({type:'blob'});
+    const ab=await blob.arrayBuffer();
+    d.fileBase64=abToBase64(ab);
+    const preview=await mammoth.convertToHtml({arrayBuffer:ab});
+    d.previewHtml=preview.value;
+    const tmp=document.createElement('div'); tmp.style.cssText='position:absolute;left:-99999px;top:-99999px;visibility:hidden';
+    tmp.innerHTML=d.previewHtml;
+    document.body.appendChild(tmp);
+    const mapNew=previewTextMap(tmp);
+    document.body.removeChild(tmp);
+    const oldPositions=captureVarPositions(d, mapOld);
+    const droppedNames=reconcileVarPositions(d, oldPositions, [{start:range[0], oldLen:oldText.length, newLen:newText.length}], mapNew);
+    loading(false);
+    if(droppedNames.length) toast('注意: '+droppedNames.join('、')+' が無効になりました。再度マスクしてください。', true);
+    else toast('文言を修正しました');
+    buildMaskArea();
+  }catch(e){ loading(false); toast('修正に失敗しました: '+e.message, true); }
+}
+/* ---- 編集モード：表のセルをクリックしたときに出す、行/列の追加・削除ツールバー ---- */
+function showTableEditToolbar(cellEl){
+  removeTableEditToolbar();
+  const rect=cellEl.getBoundingClientRect();
+  const box=document.createElement('div');
+  box.id='tableEditToolbar';
+  box.className='table-edit-toolbar';
+  const top=Math.min(rect.bottom+6, window.innerHeight-260);
+  const left=Math.min(rect.left, window.innerWidth-200);
+  box.style.top=top+'px';
+  box.style.left=left+'px';
+  box.innerHTML=`
+    <button class="btn ghost sm" data-act="rowAbove">${icon('arrowUp',13)} 上に行を追加</button>
+    <button class="btn ghost sm" data-act="rowBelow">${icon('arrowDown',13)} 下に行を追加</button>
+    <button class="btn danger sm" data-act="rowDel">${icon('trash',13)} この行を削除</button>
+    <div class="table-edit-toolbar-sep"></div>
+    <button class="btn ghost sm" data-act="colLeft">← 左に列を追加</button>
+    <button class="btn ghost sm" data-act="colRight">→ 右に列を追加</button>
+    <button class="btn danger sm" data-act="colDel">${icon('trash',13)} この列を削除</button>`;
+  document.body.appendChild(box);
+  box.querySelector('[data-act=rowAbove]').onclick=()=>{ removeTableEditToolbar(); addTableRow(cellEl.closest('tr'), false); };
+  box.querySelector('[data-act=rowBelow]').onclick=()=>{ removeTableEditToolbar(); addTableRow(cellEl.closest('tr'), true); };
+  box.querySelector('[data-act=rowDel]').onclick=()=>{ removeTableEditToolbar(); deleteTableRow(cellEl.closest('tr')); };
+  box.querySelector('[data-act=colLeft]').onclick=()=>{ removeTableEditToolbar(); addTableColumn(cellEl, false); };
+  box.querySelector('[data-act=colRight]').onclick=()=>{ removeTableEditToolbar(); addTableColumn(cellEl, true); };
+  box.querySelector('[data-act=colDel]').onclick=()=>{ removeTableEditToolbar(); deleteTableColumn(cellEl); };
+  setTimeout(()=>document.addEventListener('click', onOutsideClickCloseToolbar, true), 0);
+}
+function removeTableEditToolbar(){
+  const el=document.getElementById('tableEditToolbar');
+  if(el) el.remove();
+  document.removeEventListener('click', onOutsideClickCloseToolbar, true);
+}
+function onOutsideClickCloseToolbar(e){
+  const box=document.getElementById('tableEditToolbar');
+  if(box && !box.contains(e.target)) removeTableEditToolbar();
+}
 async function createRowGroup(memberKeys){
   const d=state.draft;
   if(!memberKeys || !memberKeys.length) return;
@@ -1305,15 +1685,16 @@ async function createRowGroup(memberKeys){
 
     // 5) 削除された行ぶんの文字数を差し引いて、各変数の新しい occurrence を求める（キーで対象を特定）
     const dropped=[];
+    const droppedKeys=[];
     const memberKeySet=new Set(memberKeys);
     const recompute=(v)=>{
       const oldPos=oldPositions[v.key];
-      if(oldPos==null){ dropped.push(v.propName); return; }
-      if(removedRanges.some(([s,e])=>oldPos>=s && oldPos<e)){ dropped.push(v.propName); return; }
+      if(oldPos==null){ dropped.push(v.propName); droppedKeys.push(v.key); return; }
+      if(removedRanges.some(([s,e])=>oldPos>=s && oldPos<e)){ dropped.push(v.propName); droppedKeys.push(v.key); return; }
       const shift=removedRanges.filter(([s])=>s<=oldPos).reduce((sum,[s,e])=>sum+(e-s),0);
       const newPos=oldPos-shift;
       const newOcc=allIndexOf(mapNew.full, v.originalText).indexOf(newPos);
-      if(newOcc<0){ dropped.push(v.propName); return; }
+      if(newOcc<0){ dropped.push(v.propName); droppedKeys.push(v.key); return; }
       v.occurrence=newOcc;
     };
     d.variables.forEach(v=>{
@@ -1322,6 +1703,22 @@ async function createRowGroup(memberKeys){
       recompute(v);
     });
     memberVars.forEach(recompute);
+    // プレビューから消えて無効になった項目は、変数としても残さず完全に削除する
+    // （残しておくと、右の一覧には出ないのに内部データとしてだけ残る「幽霊項目」になってしまうため）
+    if(droppedKeys.length){
+      const dropSet=new Set(droppedKeys);
+      const droppedVars=d.variables.filter(v=>dropSet.has(v.key));
+      d.variables=d.variables.filter(v=>!dropSet.has(v.key));
+      if(d.groupSelection) d.groupSelection=d.groupSelection.filter(k=>!dropSet.has(k));
+      // 削除された項目が、他の繰り返し行グループのメンバーだった場合は、そちらの定義からも除く
+      droppedVars.forEach(v=>{
+        if(!v.repeatGroupId) return;
+        const og=d.repeatGroups.find(x=>x.id===v.repeatGroupId);
+        if(!og) return;
+        og.memberPropNames=og.memberPropNames.filter(p=>p!==v.propName);
+      });
+      d.repeatGroups=d.repeatGroups.filter(g2=>g2.memberPropNames.length>0);
+    }
 
     const groupId=uid();
     memberVars.forEach(v=>{ v.repeatGroupId=groupId; v.repeatRole='member'; });
